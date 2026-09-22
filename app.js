@@ -1,8 +1,8 @@
 let currentFileName = 'documento';
 let activeFloatingItem = null;
 let floatingCounter = 0;
-let docPages = [];       // Contiene todas las páginas reales generadas por docx-preview
-let currentPage = 0;      // Índice de la página actualmente visible
+let docPages = [];
+let currentPage = 0;
 
 // Historial
 const undoStack = [];
@@ -22,14 +22,13 @@ const btnEditFloating = document.getElementById('btn-edit-floating');
 const statusBadge = document.getElementById('status-badge');
 const layerBadge = document.getElementById('layer-badge');
 
-// Controles del selector de páginas
+// Controles simplificados (solo números)
 const btnPageSelector = document.getElementById('btn-page-selector');
 const btnPrevPage = document.getElementById('btn-prev-page');
 const btnNextPage = document.getElementById('btn-next-page');
 const pageIndicator = document.getElementById('page-indicator');
 const pageModalBackdrop = document.getElementById('page-modal-backdrop');
 const closePageModal = document.getElementById('close-page-modal');
-const modalTotalPages = document.getElementById('modal-total-pages');
 const pageButtonsGrid = document.getElementById('page-buttons-grid');
 
 // Herramientas flotantes
@@ -39,7 +38,7 @@ const openToolsBtn = document.getElementById('open-tools-btn');
 const closeToolsBtn = document.getElementById('close-tools-btn');
 const sheetBackdrop = document.getElementById('sheet-backdrop');
 
-// Modal editor de textos flotantes
+// Modal editor
 const inlineEditorCard = document.getElementById('inline-editor-card');
 const inlineEditorInput = document.getElementById('inline-editor-input');
 const editorTitle = document.getElementById('editor-title');
@@ -137,7 +136,7 @@ function updateTransform() {
 function centerDocument(w = 794, h = 1123) {
   const vW = window.innerWidth;
   const vH = window.innerHeight;
-  const scale = (vW * 0.92) / w;
+  const scale = (vW * 0.94) / w;
   zoom = Math.min(scale, 1.0);
   panX = (vW - (w * zoom)) / 2;
   panY = Math.max(25, (vH - (h * zoom)) / 2);
@@ -190,7 +189,7 @@ viewport.addEventListener('touchend', (e) => {
 });
 
 // =========================================================
-// CARGA CON ALTA FIDELIDAD (DOCX-PREVIEW + JSZIP)
+// CARGA CON MÁXIMA FIDELIDAD (ELIMINA HOJAS FANTASMA)
 // =========================================================
 docxInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -198,7 +197,7 @@ docxInput.addEventListener('change', async (e) => {
 
   currentFileName = file.name.replace(/\.[^/.]+$/, "");
   sheetBackdrop.classList.remove('active');
-  statusBadge.textContent = 'Procesando formato exacto...';
+  statusBadge.textContent = 'Interpretando formato exacto...';
 
   const reader = new FileReader();
   reader.onload = async (event) => {
@@ -206,7 +205,7 @@ docxInput.addEventListener('change', async (e) => {
       const arrayBuffer = event.target.result;
       docContent.innerHTML = '';
 
-      // Opciones para mantener saltos de página y estilos nativos de Word
+      // Opciones críticas: ignoreLastRenderedPageBreak: true evita duplicar hojas
       const options = {
         className: 'docx',
         inWrapper: false,
@@ -214,7 +213,10 @@ docxInput.addEventListener('change', async (e) => {
         ignoreHeight: false,
         ignoreFonts: false,
         breakPages: true,
-        ignoreLastRenderedPageBreak: false, // Respeta los saltos de página de Microsoft Word
+        ignoreLastRenderedPageBreak: true, // CLAVE: evita que 2 páginas se conviertan en 4
+        experimental: false,
+        trimXmlDeclaration: true,
+        useBase64URL: true,
         renderHeaders: true,
         renderFooters: true,
         renderFootnotes: true,
@@ -223,12 +225,11 @@ docxInput.addEventListener('change', async (e) => {
 
       await docx.renderAsync(arrayBuffer, docContent, null, options);
 
-      // Detectar las páginas generadas (cada section.docx es una hoja)
+      // Detectar las páginas reales
       const sections = docContent.querySelectorAll('section.docx');
       if (sections.length > 0) {
         docPages = Array.from(sections);
       } else {
-        // En caso de que no tenga saltos de página explícitos
         docPages = [docContent];
       }
 
@@ -250,13 +251,12 @@ docxInput.addEventListener('change', async (e) => {
 });
 
 // =========================================================
-// SISTEMA DE NAVEGACIÓN Y SELECTOR DE PÁGINAS
+// SISTEMA NUMÉRICO SIMPLIFICADO DE NAVEGACIÓN
 // =========================================================
 function setupPagination() {
   const total = docPages.length;
 
   if (total > 1) {
-    // Mostrar botones de paginación solo si hay más de 1 hoja
     btnPageSelector.style.display = 'flex';
     btnPrevPage.style.display = 'flex';
     btnNextPage.style.display = 'flex';
@@ -266,15 +266,13 @@ function setupPagination() {
     btnNextPage.style.display = 'none';
   }
 
-  // Generar cuadrícula en el modal selector
-  modalTotalPages.textContent = total;
+  // Generar cuadrícula en el modal con números directos
   pageButtonsGrid.innerHTML = '';
-
   for (let i = 0; i < total; i++) {
     const tile = document.createElement('button');
-    tile.className = 'page-tile';
+    tile.className = 'page-num-tile';
     tile.dataset.pageIndex = i;
-    tile.innerHTML = `<span>📄</span><span>Hoja ${i + 1}</span>`;
+    tile.textContent = `${i + 1}`; // Solo el número (ej: 1, 2, 3)
     tile.addEventListener('click', () => {
       showPage(i);
       closeModal();
@@ -289,7 +287,7 @@ function showPage(pageIndex) {
 
   clearSelection();
 
-  // Ocultar todas las páginas y mostrar únicamente la seleccionada
+  // Ocultar hojas inactivas y mostrar la actual
   docPages.forEach((sec, idx) => {
     if (idx === currentPage) {
       sec.style.display = 'block';
@@ -300,27 +298,23 @@ function showPage(pageIndex) {
     }
   });
 
-  // Actualizar indicadores
-  pageIndicator.textContent = `Pág. ${currentPage + 1} / ${docPages.length}`;
+  // Mostrar solo el número actual / total (ej: 1 / 2)
+  pageIndicator.textContent = `${currentPage + 1} / ${docPages.length}`;
   btnPrevPage.disabled = (currentPage === 0);
   btnNextPage.disabled = (currentPage === docPages.length - 1);
 
-  // Marcar como activa en el modal
-  document.querySelectorAll('.page-tile').forEach((tile, idx) => {
+  document.querySelectorAll('.page-num-tile').forEach((tile, idx) => {
     tile.classList.toggle('active-page', idx === currentPage);
   });
 
-  // Centrar la hoja activa
   const activeSec = docPages[currentPage];
   centerDocument(activeSec.offsetWidth || 794, activeSec.offsetHeight || 1123);
-  statusBadge.textContent = `Hoja ${currentPage + 1} activa`;
+  statusBadge.textContent = `${currentPage + 1} de ${docPages.length}`;
 }
 
-// Flechas anterior y siguiente
 btnPrevPage.addEventListener('click', () => showPage(currentPage - 1));
 btnNextPage.addEventListener('click', () => showPage(currentPage + 1));
 
-// Abrir y cerrar modal selector de páginas
 btnPageSelector.addEventListener('click', () => {
   pageModalBackdrop.classList.add('active');
 });
@@ -351,7 +345,7 @@ btnToggleDocEdit.addEventListener('click', () => {
 
   if (isEditingDocActive) {
     pageHTMLBeforeEdit = activeSec.innerHTML;
-    statusBadge.textContent = `✏️ Editando Hoja ${currentPage + 1}`;
+    statusBadge.textContent = `✏️ Editando (${currentPage + 1})`;
     activeSec.focus();
   } else {
     if (activeSec.innerHTML !== pageHTMLBeforeEdit) {
@@ -363,7 +357,7 @@ btnToggleDocEdit.addEventListener('click', () => {
         newHTML: activeSec.innerHTML
       });
     }
-    statusBadge.textContent = `Hoja ${currentPage + 1} lista`;
+    statusBadge.textContent = `Listo (${currentPage + 1})`;
   }
 });
 
@@ -431,7 +425,6 @@ function makeFloatingDraggable(el) {
     let targetLeft = origLeft + dx;
     let targetTop = origTop + dy;
 
-    // Ajuste magnético al centro de la hoja activa
     const parentWidth = el.parentElement.offsetWidth || 794;
     const sheetCenter = parentWidth / 2;
     const elCenter = targetLeft + (el.offsetWidth / 2);
@@ -527,7 +520,7 @@ btnAddFloatingText.addEventListener('click', () => {
   activeFloatingItem = null;
 
   inlineEditorInput.value = '';
-  editorTitle.textContent = `🔤 Nuevo Cuadro (Capa #${floatingCounter + 1})`;
+  editorTitle.textContent = `🔤 Cuadro (Capa #${floatingCounter + 1})`;
   inlineEditorCard.classList.add('visible');
   inlineEditorInput.focus();
 });
@@ -564,7 +557,6 @@ btnApplyFloating.addEventListener('click', () => {
     activeFloatingItem.style.fontWeight = isBoldActive ? 'bold' : 'normal';
     activeFloatingItem.style.fontStyle = isItalicActive ? 'italic' : 'normal';
   } else {
-    // Insertar en la página actual activa
     const item = document.createElement('div');
     item.className = 'floating-item';
     item.dataset.type = 'text';
@@ -629,7 +621,7 @@ imgInput.addEventListener('change', (e) => {
   reader.readAsDataURL(file);
 });
 
-// Herramientas generales
+// Menú
 openToolsBtn.addEventListener('click', () => sheetBackdrop.classList.add('active'));
 closeToolsBtn.addEventListener('click', () => sheetBackdrop.classList.remove('active'));
 sheetBackdrop.addEventListener('click', (e) => {
@@ -643,7 +635,7 @@ btnResetZoom.addEventListener('click', () => {
 });
 
 // =========================================================
-// CONVERTIR TODAS LAS PÁGINAS A PDF
+// CONVERTIR A PDF (RESPETA HOJAS EXACTAS Y FORMATO)
 // =========================================================
 btnExportPdf.addEventListener('click', () => {
   if (!docPages || docPages.length === 0) {
@@ -656,19 +648,18 @@ btnExportPdf.addEventListener('click', () => {
   gridOverlay.classList.remove('active');
   btnToggleGrid.classList.remove('active');
 
-  statusBadge.textContent = 'Convirtiendo todas las páginas a PDF...';
+  statusBadge.textContent = 'Generando PDF...';
 
-  // 1. Mostrar todas las páginas para que html2pdf procese el documento completo
+  // Mostrar todas las hojas ordenadas para que html2pdf las compile
   docPages.forEach(sec => {
     sec.style.display = 'block';
     sec.style.marginBottom = '0px';
     sec.style.boxShadow = 'none';
   });
 
-  // Configuración de html2pdf con separación de páginas idéntica a Word
   const opt = {
     margin: [0, 0, 0, 0],
-    filename: `${currentFileName}_editado.pdf`,
+    filename: `${currentFileName}_convertido.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -677,7 +668,6 @@ btnExportPdf.addEventListener('click', () => {
 
   html2pdf().set(opt).from(docContent).save().then(() => {
     statusBadge.textContent = '¡PDF descargado con éxito!';
-    // Restaurar vista exclusiva de la página actual
     showPage(currentPage);
   }).catch((err) => {
     console.error(err);
