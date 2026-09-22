@@ -71,7 +71,20 @@ html, body {
   line-height: 1;
 }
 
-/* SELECTOR NUMÉRICO DIRECTO (EJ. 1 / 2) */
+.btn-edit-nav:not(:disabled) {
+  background: rgba(37, 99, 235, 0.3);
+  border-color: #2563eb;
+  color: #60a5fa;
+  animation: pulse-edit 1.4s infinite;
+}
+
+@keyframes pulse-edit {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* SELECTOR NUMÉRICO DIRECTO (1 / 2) */
 .page-num-btn {
   width: auto !important;
   padding: 0 12px;
@@ -145,53 +158,54 @@ html, body {
   left: 0;
   transform-origin: 0 0;
   will-change: transform;
+  background: #ffffff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
   display: none;
 }
 
-/* CONTENEDOR DE WORD SIN DISTORSIÓN */
-.docx-wrapper {
-  background: transparent !important;
-  padding: 0 !important;
-}
-
-/* Cada hoja conserva sus medidas exactas de Word */
-section.docx {
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
-  margin: 0 auto !important;
-  background: #ffffff !important;
-  position: relative !important;
-  overflow: hidden !important;
-  user-select: text !important;
-  -webkit-user-select: text !important;
-}
-
-section.docx.editing-active {
-  outline: 3px dashed #2563eb !important;
-  outline-offset: -3px;
-}
-
-/* CUADROS FLOTANTES */
-.floating-item {
-  position: absolute;
-  pointer-events: auto;
-  cursor: move;
-  border: 1.5px dashed transparent;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: border-color 0.15s;
-  z-index: 100;
-}
-
-.floating-item.selected {
-  border-color: #2563eb !important;
-  background: rgba(37, 99, 235, 0.08);
-}
-
-.floating-item img {
+#pdf-canvas {
   display: block;
-  max-width: 100%;
-  height: auto;
+}
+
+/* CAPAS DE TEXTO */
+.text-detect-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  z-index: 15;
+}
+
+.text-detect-layer.interactive {
+  pointer-events: auto !important;
+}
+
+.detected-line {
+  position: absolute;
+  border-radius: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.text-detect-layer.interactive .detected-line {
+  border: 1.5px dashed #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.text-detect-layer.interactive .detected-line:hover,
+.text-detect-layer.interactive .detected-line:active {
+  background: rgba(37, 99, 235, 0.32);
+  border-color: #1d4ed8;
+}
+
+.fabric-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  touch-action: none;
+  z-index: 20;
 }
 
 /* GRILLA MILIMÉTRICA */
@@ -203,7 +217,7 @@ section.docx.editing-active {
   height: 100%;
   pointer-events: none;
   display: none;
-  z-index: 50;
+  z-index: 5;
   background-size: 20px 20px, 100px 100px;
   background-image:
     linear-gradient(to right, rgba(59, 130, 246, 0.16) 1px, transparent 1px),
@@ -216,7 +230,7 @@ section.docx.editing-active {
   display: block;
 }
 
-/* MODAL DE SELECCIÓN DE HOJAS */
+/* MODAL DE SELECTOR DE HOJAS */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -648,6 +662,7 @@ section.docx.editing-active {
 
 .tool-btn span.icon { font-size: 20px; }
 .tool-btn.highlight { background: #2563eb; }
+.tool-btn.success { background: #059669; }
 .tool-btn.danger { background: #dc2626; }
 .tool-btn.active-state { background: #f59e0b !important; }
 .disabled-tool { opacity: 0.4; pointer-events: none; }
