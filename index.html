@@ -3,27 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Word Nativo</title>
+  <title>Editor Word Pro - Fidelidad y Edición Directa</title>
 
-  <!-- Fuentes del sistema -->
+  <!-- Fuentes tipográficas -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600&family=Dancing+Script:wght@600&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&family=Lato:wght@400;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@500&family=Pacifico&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@400;600;700&family=Raleway:wght@400;700&family=Roboto:wght@400;700&family=Rubik:wght@400;600&display=swap" rel="stylesheet">
 
-  <!-- 1. JSZip: Descompresor de Word -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- 2. docx-preview: Renderizador de estructuras Word -->
-  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
-  <!-- 3. html2pdf: Conversor final a PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Librerías de renderizado y PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
+  <script>
+    if (!window.PDFLib && !window.pdfLib) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"><\/script>');
+    }
+  </script>
 
-  <link rel="stylesheet" href="./style.css?v=20">
+  <link rel="stylesheet" href="./style.css?v=25">
 </head>
 <body>
 
-  <!-- Barra superior -->
+  <!-- Barra de control superior -->
   <header class="top-nav">
     <div class="history-controls">
+      <!-- Deshacer y Rehacer funcionales -->
       <button id="btn-undo" class="nav-btn" disabled title="Deshacer (Ctrl+Z)">
         <span class="icon">↶</span>
       </button>
@@ -45,7 +49,7 @@
     </div>
   </header>
 
-  <!-- Espacio de trabajo con zoom táctil -->
+  <!-- Espacio de trabajo infinito -->
   <main id="viewport">
     <div id="empty-state">
       <div style="font-size: 48px; margin-bottom: 8px;">📝</div>
@@ -54,55 +58,98 @@
     </div>
 
     <div id="sheet-wrapper">
+      <canvas id="pdf-canvas"></canvas>
       <div id="grid-overlay" class="grid-overlay"></div>
-      <!-- Aquí se monta el documento Word 100% editable -->
-      <div id="doc-content" class="doc-content"></div>
+      <!-- Capa de texto editable directa en el documento -->
+      <div id="text-detect-layer" class="text-detect-layer"></div>
+      <div class="fabric-wrapper">
+        <canvas id="fabric-canvas"></canvas>
+      </div>
     </div>
   </main>
 
-  <!-- Modal selector de hojas -->
+  <!-- MODAL SELECTOR DIRECTO DE PÁGINAS -->
   <div id="page-modal-backdrop" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
-        <span class="modal-title">Ir a la hoja</span>
+        <span class="modal-title">Seleccionar página</span>
         <button id="close-page-modal" class="btn-icon">✕</button>
       </div>
       <div id="page-buttons-grid" class="page-grid"></div>
     </div>
   </div>
 
-  <!-- Botón flotante de herramientas -->
+  <!-- CRUCETA (D-PAD) Y GRILLA -->
+  <div id="precision-tools" class="precision-tools">
+    <button id="btn-toggle-grid" class="grid-toggle-btn" title="Mostrar/Ocultar Grilla">
+      <span class="grid-icon">⊞</span>
+      <span class="grid-text">Grilla</span>
+    </button>
+
+    <div class="dpad-cross">
+      <button class="dpad-btn up" id="dpad-up">▲</button>
+      <button class="dpad-btn left" id="dpad-left">◀</button>
+      <div class="dpad-center">1px</div>
+      <button class="dpad-btn right" id="dpad-right">▶</button>
+      <button class="dpad-btn down" id="dpad-down">▼</button>
+    </div>
+  </div>
+
+  <!-- Botón flotante -->
   <button class="fab-main-trigger" id="open-tools-btn">
     <span>🛠️</span>
     <span>Herramientas</span>
   </button>
 
-  <!-- Menú desplegable inferior -->
+  <!-- Panel desplegable -->
   <div class="sheet-backdrop" id="sheet-backdrop">
     <div class="tools-panel">
       <div class="panel-header">
-        <span class="panel-title">Opciones de Word</span>
+        <span class="panel-title">Opciones de Edición</span>
         <button class="panel-close" id="close-tools-btn">✕</button>
       </div>
 
       <div class="tools-grid">
-        <label class="tool-btn highlight" for="doc-input" style="cursor:pointer;">
+        <button class="tool-btn highlight disabled-tool" id="btn-mode-edit-text">
+          <span class="icon">✏️</span>
+          <span>Escribir en Texto</span>
+        </button>
+
+        <button class="tool-btn disabled-tool" id="btn-whiteout">
+          <span class="icon">⬜</span>
+          <span>Tapar / Parche</span>
+        </button>
+
+        <button class="tool-btn disabled-tool" id="btn-draw">
+          <span class="icon">🖊️</span>
+          <span>Firmar / Lápiz</span>
+        </button>
+
+        <label class="tool-btn disabled-tool" for="img-input" style="cursor:pointer;">
+          <span class="icon">🖼️</span>
+          <span>Subir Foto/Firma</span>
+        </label>
+        <input type="file" id="img-input" accept="image/png, image/jpeg" style="display:none;">
+
+        <!-- Solo acepta archivos Word (.docx) -->
+        <label class="tool-btn" for="doc-input" style="cursor:pointer;">
           <span class="icon">📁</span>
-          <span>Abrir .docx</span>
+          <span>Abrir Word (.docx)</span>
         </label>
         <input type="file" id="doc-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;">
 
-        <button class="tool-btn disabled-tool" id="btn-toggle-grid">
-          <span class="icon">⊞</span>
-          <span>Grilla Guía</span>
+        <button class="tool-btn disabled-tool" id="btn-delete-layer">
+          <span class="icon">🗑️</span>
+          <span>Eliminar Capa</span>
         </button>
 
         <button class="tool-btn disabled-tool" id="btn-reset-zoom">
           <span class="icon">🎯</span>
-          <span>Centrar Hoja</span>
+          <span>Centrar Vista</span>
         </button>
 
-        <button class="tool-btn success disabled-tool" id="btn-save-pdf">
+        <!-- Exportar a PDF con fidelidad exacta -->
+        <button class="tool-btn success disabled-tool" id="btn-save">
           <span class="icon">💾</span>
           <span>Exportar a PDF</span>
         </button>
@@ -110,6 +157,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20"></script>
+  <script src="./app.js?v=25"></script>
 </body>
 </html>
