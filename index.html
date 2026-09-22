@@ -2,195 +2,221 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Editor Word Pro - Motor Syncfusion</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Editor Documental Pro (Word & PDF)</title>
 
-  <!-- Estilos del tema Material de Syncfusion -->
-  <link href="https://cdn.syncfusion.com/ej2/26.1.35/material.css" rel="stylesheet" />
+  <!-- Fuentes tipográficas -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600&family=Dancing+Script:wght@600&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&family=Lato:wght@400;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@500&family=Pacifico&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@400;600;700&family=Raleway:wght@400;700&family=Roboto:wght@400;700&family=Rubik:wght@400;600&display=swap" rel="stylesheet">
 
-  <!-- Motor completo de Syncfusion EJ2 -->
-  <script src="https://cdn.syncfusion.com/ej2/26.1.35/dist/ej2.min.js"></script>
-
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+  <!-- Librerías de renderizado y PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
+  <script>
+    if (!window.PDFLib && !window.pdfLib) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"><\/script>');
     }
+  </script>
 
-    html, body {
-      width: 100%;
-      height: 100%;
-      height: 100dvh;
-      overflow: hidden;
-      font-family: system-ui, -apple-system, sans-serif;
-      background-color: #0f172a;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Barra superior personalizada */
-    .app-header {
-      background: #1e293b;
-      color: #ffffff;
-      padding: 10px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #334155;
-      z-index: 100;
-    }
-
-    .app-title {
-      font-size: 15px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .btn-action {
-      background: #2563eb;
-      color: white;
-      border: none;
-      padding: 7px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.2s;
-    }
-
-    .btn-action:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-action.pdf {
-      background: #dc2626;
-    }
-
-    .btn-action.pdf:hover {
-      background: #b91c1c;
-    }
-
-    /* Contenedor principal del editor */
-    #document-container {
-      flex: 1;
-      width: 100%;
-      height: calc(100% - 53px);
-      position: relative;
-    }
-
-    /* Ajuste responsivo de la barra de Syncfusion */
-    .e-de-ctn {
-      border: none !important;
-    }
-  </style>
+  <link rel="stylesheet" href="./style.css?v=10">
 </head>
 <body>
 
-  <!-- Barra de control superior con descarga directa -->
-  <header class="app-header">
-    <div class="app-title">
-      <span>📝</span>
-      <span>Editor Word & Convertidor</span>
+  <!-- Barra de navegación superior -->
+  <header class="top-nav">
+    <div class="history-controls">
+      <button id="btn-undo" class="nav-btn" disabled title="Deshacer (Ctrl+Z)">
+        <span class="icon">↶</span>
+      </button>
+      <button id="btn-redo" class="nav-btn" disabled title="Rehacer (Ctrl+Y)">
+        <span class="icon">↷</span>
+      </button>
+      <button id="btn-edit-selected" class="nav-btn btn-edit-nav" disabled title="Modificar texto">
+        <span class="icon">✏️</span>
+      </button>
+
+      <!-- Paginador numérico -->
+      <button id="btn-prev-page" class="nav-btn page-arrow" style="display: none;" title="Anterior">◀</button>
+      <button id="btn-page-selector" class="nav-btn page-num-btn" style="display: none;" title="Cambiar página">
+        <span id="page-indicator">1 / 1</span>
+        <span class="arrow-down">▼</span>
+      </button>
+      <button id="btn-next-page" class="nav-btn page-arrow" style="display: none;" title="Siguiente">▶</button>
     </div>
-
-    <div class="header-actions">
-      <!-- Botón de apertura manual de archivo .docx -->
-      <label class="btn-action" for="file-upload" style="cursor: pointer;">
-        <span>📁</span>
-        <span>Abrir Word</span>
-      </label>
-      <input type="file" id="file-upload" accept=".docx,.doc,.rtf,.txt" style="display: none;" />
-
-      <!-- Botón de exportación a PDF -->
-      <button id="btn-export-pdf" class="btn-action pdf">
-        <span>📄</span>
-        <span>Exportar a PDF</span>
-      </button>
-
-      <!-- Botón de guardado en Word -->
-      <button id="btn-save-docx" class="btn-action">
-        <span>💾</span>
-        <span>Guardar .docx</span>
-      </button>
+    
+    <div class="status-container">
+      <span id="layer-badge" class="layer-badge" style="display: none;">Capa --</span>
+      <span id="status-badge" class="status-badge">Sin documento</span>
     </div>
   </header>
 
-  <!-- Área donde se renderiza el lienzo idéntico a Word -->
-  <div id="document-container"></div>
+  <!-- Espacio de trabajo infinito -->
+  <main id="viewport">
+    <div id="empty-state">
+      <div style="font-size: 48px; margin-bottom: 8px;">📄</div>
+      <div style="font-size: 18px; font-weight: 700; color: #f8fafc;">Ningún archivo abierto</div>
+      <div style="font-size: 14px; color: #94a3b8; margin-top: 6px;">Abre un archivo <b>.docx</b> o <b>.pdf</b> en "Herramientas"</div>
+    </div>
 
-  <script>
-    // Inicializar el contenedor de Syncfusion Document Editor
-    const container = new ej.documenteditor.DocumentEditorContainer({
-      enableToolbar: true,
-      height: '100%',
-      // Servicio web oficial que procesa y traduce las estructuras binarias del .docx a vectores
-      serviceUrl: 'https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/'
-    });
+    <div id="sheet-wrapper">
+      <canvas id="pdf-canvas"></canvas>
+      <div id="grid-overlay" class="grid-overlay"></div>
+      <div id="text-detect-layer" class="text-detect-layer"></div>
+      <div class="fabric-wrapper">
+        <canvas id="fabric-canvas"></canvas>
+      </div>
+    </div>
+  </main>
 
-    // Inyectar el módulo de barra de herramientas completa
-    ej.documenteditor.DocumentEditorContainer.Inject(ej.documenteditor.Toolbar);
+  <!-- MODAL SELECTOR DIRECTO DE PÁGINAS -->
+  <div id="page-modal-backdrop" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Seleccionar página</span>
+        <button id="close-page-modal" class="btn-icon">✕</button>
+      </div>
+      <div id="page-buttons-grid" class="page-grid"></div>
+    </div>
+  </div>
 
-    // Montar en el elemento HTML
-    container.appendTo('#document-container');
+  <!-- CRUCETA (D-PAD) Y GRILLA -->
+  <div id="precision-tools" class="precision-tools">
+    <button id="btn-toggle-grid" class="grid-toggle-btn" title="Mostrar/Ocultar Grilla">
+      <span class="grid-icon">⊞</span>
+      <span class="grid-text">Grilla</span>
+    </button>
 
-    // Manejar apertura de archivos Word (.docx)
-    const fileUpload = document.getElementById('file-upload');
-    fileUpload.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    <div class="dpad-cross">
+      <button class="dpad-btn up" id="dpad-up">▲</button>
+      <button class="dpad-btn left" id="dpad-left">◀</button>
+      <div class="dpad-center">1px</div>
+      <button class="dpad-btn right" id="dpad-right">▶</button>
+      <button class="dpad-btn down" id="dpad-down">▼</button>
+    </div>
+  </div>
 
-      const format = file.name.substring(file.name.lastIndexOf('.'));
-      
-      // Si el usuario sube un archivo Word (.docx, .doc, etc.)
-      if (format === '.docx' || format === '.doc' || format === '.rtf' || format === '.txt') {
-        const formData = new FormData();
-        formData.append('files', file);
+  <!-- Modal de modificación de textos -->
+  <div id="inline-editor-card" class="inline-editor-card">
+    <div class="editor-header">
+      <span id="editor-title">✏️ Modificar Texto</span>
+      <button id="close-inline-editor" class="btn-icon">✕</button>
+    </div>
 
-        // Llamada al motor de importación para obtener el árbol vectorial del archivo
-        fetch('https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/Import', {
-          method: 'POST',
-          body: formData
-        })
-        .then(response => {
-          if (!response.ok) throw new Error('Error al procesar el archivo en el servidor.');
-          return response.text();
-        })
-        .then(sfdtData => {
-          // Abre el documento respetando exactamente las hojas, márgenes y tablas
-          container.documentEditor.open(sfdtData);
-          container.documentEditor.documentName = file.name.replace(/\.[^/.]+$/, "");
-        })
-        .catch(err => {
-          console.error(err);
-          alert('Hubo un problema al cargar el archivo Word: ' + err.message);
-        });
-      }
-    });
+    <div class="font-toolbar">
+      <select id="font-family-select" class="font-select">
+        <optgroup label="Sans-Serif">
+          <option value="Arial">Arial / Helvetica</option>
+          <option value="Roboto">Roboto</option>
+          <option value="Open Sans">Open Sans</option>
+          <option value="Montserrat">Montserrat</option>
+          <option value="Poppins">Poppins</option>
+          <option value="Inter">Inter</option>
+          <option value="Lato">Lato</option>
+        </optgroup>
+        <optgroup label="Serif">
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Georgia">Georgia</option>
+          <option value="EB Garamond">Garamond</option>
+          <option value="Playfair Display">Playfair Display</option>
+          <option value="Merriweather">Merriweather</option>
+        </optgroup>
+        <optgroup label="Monoespaciadas">
+          <option value="Courier New">Courier New</option>
+          <option value="Consolas">Consolas</option>
+        </optgroup>
+        <optgroup label="Otras">
+          <option value="Pacifico">Pacifico</option>
+          <option value="Dancing Script">Dancing Script</option>
+          <option value="Caveat">Caveat</option>
+          <option value="Impact">Impact</option>
+        </optgroup>
+      </select>
 
-    // Guardar como archivo Word (.docx)
-    document.getElementById('btn-save-docx').addEventListener('click', () => {
-      const docName = container.documentEditor.documentName || 'Documento';
-      container.documentEditor.save(docName, 'Docx');
-    });
+      <div class="font-styles">
+        <button id="btn-toggle-bold" class="style-toggle" type="button"><b>B</b></button>
+        <button id="btn-toggle-italic" class="style-toggle" type="button"><i>I</i></button>
+      </div>
 
-    // Exportar / Convertir directamente a PDF
-    document.getElementById('btn-export-pdf').addEventListener('click', () => {
-      // Abre el diálogo de impresión optimizado con las hojas vectoriales exactas
-      // Permite elegir "Guardar como PDF" con fidelidad 100% idéntica a Word
-      container.documentEditor.print();
-    });
-  </script>
+      <div class="font-size-ctrl">
+        <button id="btn-size-dec" class="size-btn" type="button">-</button>
+        <input type="number" id="font-size-input" class="size-input" min="6" max="90" value="14">
+        <button id="btn-size-inc" class="size-btn" type="button">+</button>
+      </div>
+
+      <input type="color" id="font-color-picker" class="color-picker" value="#000000">
+    </div>
+
+    <textarea id="inline-editor-input" rows="3" placeholder="Escribe el texto aquí..."></textarea>
+
+    <div class="editor-actions">
+      <button id="btn-center-text" class="btn-action secondary">🎯 Centrar</button>
+      <button id="btn-apply-text" class="btn-action primary">Aplicar</button>
+    </div>
+  </div>
+
+  <!-- Botón flotante -->
+  <button class="fab-main-trigger" id="open-tools-btn">
+    <span>🛠️</span>
+    <span>Herramientas</span>
+  </button>
+
+  <!-- Panel desplegable -->
+  <div class="sheet-backdrop" id="sheet-backdrop">
+    <div class="tools-panel">
+      <div class="panel-header">
+        <span class="panel-title">Herramientas de Edición</span>
+        <button class="panel-close" id="close-tools-btn">✕</button>
+      </div>
+
+      <div class="tools-grid">
+        <button class="tool-btn highlight disabled-tool" id="btn-mode-edit-text">
+          <span class="icon">📝</span>
+          <span>Editar Texto</span>
+        </button>
+
+        <button class="tool-btn disabled-tool" id="btn-add-text">
+          <span class="icon">🔤</span>
+          <span>Añadir Texto</span>
+        </button>
+
+        <button class="tool-btn disabled-tool" id="btn-whiteout">
+          <span class="icon">⬜</span>
+          <span>Tapar / Parche</span>
+        </button>
+
+        <button class="tool-btn disabled-tool" id="btn-draw">
+          <span class="icon">✏️</span>
+          <span>Firmar / Lápiz</span>
+        </button>
+
+        <label class="tool-btn disabled-tool" for="img-input" style="cursor:pointer;">
+          <span class="icon">🖼️</span>
+          <span>Subir Firma/Foto</span>
+        </label>
+        <input type="file" id="img-input" accept="image/png, image/jpeg" style="display:none;">
+
+        <!-- Acepta tanto Word (.docx) como PDF -->
+        <label class="tool-btn" for="doc-input" style="cursor:pointer;">
+          <span class="icon">📁</span>
+          <span>Abrir Word o PDF</span>
+        </label>
+        <input type="file" id="doc-input" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;">
+
+        <button class="tool-btn disabled-tool" id="btn-reset-zoom">
+          <span class="icon">🎯</span>
+          <span>Centrar Vista</span>
+        </button>
+
+        <button class="tool-btn success disabled-tool" id="btn-save">
+          <span class="icon">💾</span>
+          <span>Descargar PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js?v=10"></script>
 </body>
 </html>
