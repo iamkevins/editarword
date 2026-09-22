@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Editor Word Web - Con apertura de .docx</title>
-  
-  <!-- Mammoth.js para procesar archivos .docx nativos -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <title>Editor Web Word de Alta Fidelidad</title>
+
+  <!-- Dependencias indispensables para renderizar el formato OpenXML -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
 
   <style>
     :root {
-      --office-blue: #005a9e;
-      --office-blue-hover: #106ebe;
-      --bg-gray: #edebe9;
-      --toolbar-bg: #faf9f8;
-      --border-color: #d2d0ce;
-      --text-main: #323130;
+      --word-blue: #185abd;
+      --word-blue-dark: #103f91;
+      --bg-canvas: #eaeaea;
+      --toolbar-bg: #f3f2f1;
+      --border-color: #d1d1d1;
     }
 
     * {
@@ -25,330 +25,209 @@
     }
 
     body {
-      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-      background-color: var(--bg-gray);
-      color: var(--text-main);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-canvas);
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      height: 100vh;
       overflow: hidden;
     }
 
     /* Barra superior */
     header {
-      background-color: var(--office-blue);
+      background-color: var(--word-blue);
       color: white;
-      padding: 8px 16px;
+      padding: 0 16px;
+      height: 48px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 48px;
     }
 
     header h1 {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
     }
 
-    .header-actions {
+    .header-btns {
       display: flex;
-      gap: 10px;
-      align-items: center;
+      gap: 8px;
     }
 
     .btn-header {
-      background: #ffffff;
-      color: var(--office-blue);
+      background: white;
+      color: var(--word-blue);
       border: none;
       padding: 6px 14px;
       border-radius: 3px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
     }
 
     .btn-header:hover {
-      background: #f3f2f1;
+      background: #f0f0f0;
     }
 
-    /* Cinta de opciones (Ribbon) */
+    /* Cinta de herramientas (Ribbon) */
     .ribbon {
-      background-color: var(--toolbar-bg);
+      background: var(--toolbar-bg);
       border-bottom: 1px solid var(--border-color);
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
       padding: 6px 16px;
-      user-select: none;
-    }
-
-    .toolbar-group {
       display: flex;
+      gap: 12px;
       align-items: center;
-      gap: 3px;
-      padding-right: 8px;
-      border-right: 1px solid var(--border-color);
     }
 
     .ribbon button {
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: 2px;
-      padding: 6px 9px;
-      cursor: pointer;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      padding: 4px 10px;
       font-size: 13px;
       font-weight: 600;
-      color: var(--text-main);
-      min-width: 28px;
-      height: 28px;
+      cursor: pointer;
     }
 
     .ribbon button:hover {
-      background-color: #f3f2f1;
-      border-color: #c8c6c4;
+      background: #e1dfdd;
     }
 
-    .ribbon select {
-      padding: 4px 6px;
-      font-size: 13px;
-      border: 1px solid var(--border-color);
-      border-radius: 2px;
-      background: white;
-      height: 28px;
-    }
-
-    /* Lienzo y hoja */
+    /* Contenedor del documento */
     .document-viewport {
       flex: 1;
       overflow-y: auto;
-      padding: 30px 16px;
+      padding: 30px 10px;
       display: flex;
-      justify-content: center;
-      transition: background 0.2s;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
     }
 
-    .document-viewport.drag-over {
-      background-color: #c7e0f4;
-      outline: 2px dashed var(--office-blue);
-      outline-offset: -10px;
-    }
-
-    .page {
-      background: white;
-      width: 210mm;
-      min-height: 297mm;
-      padding: 25.4mm;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      border: 1px solid #c8c6c4;
+    /* Estilos sobre el contenedor renderizado por docx-preview */
+    #document-container {
       outline: none;
-      font-family: "Calibri", "Segoe UI", sans-serif;
-      font-size: 11pt;
-      line-height: 1.5;
-      color: #000;
-      word-break: break-word;
     }
 
-    /* Soporte visual para tablas e imágenes importadas de Word */
-    .page table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
+    /* docx-preview genera clases automáticas .docx-wrapper y .docx */
+    .docx-wrapper {
+      background: transparent !important;
+      padding: 0 !important;
     }
 
-    .page table, .page th, .page td {
-      border: 1px solid #8a8886;
-      padding: 6px 10px;
+    .docx-wrapper > section.docx {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+      margin-bottom: 24px !important;
+      background: white !important;
+      outline: none;
     }
 
-    .page img {
-      max-width: 100%;
-      height: auto;
-      margin: 8px 0;
-    }
-
-    /* Barra de estado */
-    footer.status-bar {
-      background-color: var(--office-blue);
-      color: #fff;
+    /* Barra de estado inferior */
+    footer {
+      background: var(--word-blue);
+      color: white;
       font-size: 12px;
       padding: 4px 16px;
-      display: flex;
-      justify-content: space-between;
       height: 24px;
+      display: flex;
       align-items: center;
+      justify-content: space-between;
     }
 
     @media print {
-      body { background: transparent; overflow: visible; }
-      header, .ribbon, footer.status-bar { display: none !important; }
-      .document-viewport { padding: 0; overflow: visible; }
-      .page { border: none; box-shadow: none; padding: 0; width: 100%; min-height: 100%; }
+      header, .ribbon, footer { display: none !important; }
+      body, .document-viewport { background: white; overflow: visible; padding: 0; }
+      .docx-wrapper > section.docx { box-shadow: none !important; margin: 0 !important; }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Word Web Editor</h1>
-    <div class="header-actions">
-      <!-- Input oculto para cargar archivos -->
-      <input type="file" id="docxInput" accept=".docx" style="display:none" onchange="handleFileSelect(event)">
-      
-      <button class="btn-header" onclick="document.getElementById('docxInput').click()">
-        📁 Abrir .docx
-      </button>
-      <button class="btn-header" onclick="window.print()">
-        🖨️ Imprimir / PDF
-      </button>
+    <h1>Editor Word Web - Motor de Alta Fidelidad</h1>
+    <div class="header-btns">
+      <input type="file" id="fileInput" accept=".docx" style="display:none" onchange="loadFile(event)">
+      <button class="btn-header" onclick="document.getElementById('fileInput').click()">📁 Abrir Word (.docx)</button>
+      <button class="btn-header" onclick="window.print()">🖨️ Exportar / Imprimir</button>
     </div>
   </header>
 
-  <!-- Ribbon -->
+  <!-- Cinta de formato rápido -->
   <nav class="ribbon">
-    <div class="toolbar-group">
-      <select onchange="formatDoc('fontName', this.value)">
-        <option value="Calibri" selected>Calibri</option>
-        <option value="Arial">Arial</option>
-        <option value="Times New Roman">Times New Roman</option>
-        <option value="Georgia">Georgia</option>
-      </select>
-
-      <select onchange="formatDoc('fontSize', this.value)">
-        <option value="1">8 pt</option>
-        <option value="2">10 pt</option>
-        <option value="3" selected>11 pt</option>
-        <option value="4">14 pt</option>
-        <option value="5">18 pt</option>
-        <option value="6">24 pt</option>
-      </select>
-    </div>
-
-    <div class="toolbar-group">
-      <button title="Negrita" onclick="formatDoc('bold')"><b>N</b></button>
-      <button title="Cursiva" onclick="formatDoc('italic')"><i>K</i></button>
-      <button title="Subrayado" onclick="formatDoc('underline')"><u>S</u></button>
-    </div>
-
-    <div class="toolbar-group">
-      <button title="Izquierda" onclick="formatDoc('justifyLeft')">Izq</button>
-      <button title="Centro" onclick="formatDoc('justifyCenter')">Cen</button>
-      <button title="Derecha" onclick="formatDoc('justifyRight')">Der</button>
-      <button title="Justificar" onclick="formatDoc('justifyFull')">Just</button>
-    </div>
-
-    <div class="toolbar-group">
-      <button title="Lista con viñetas" onclick="formatDoc('insertUnorderedList')">• Lista</button>
-      <button title="Lista numerada" onclick="formatDoc('insertOrderedList')">1. Lista</button>
-    </div>
+    <button onclick="execCmd('bold')"><b>N</b></button>
+    <button onclick="execCmd('italic')"><i>K</i></button>
+    <button onclick="execCmd('underline')"><u>S</u></button>
+    <button onclick="execCmd('justifyLeft')">Izq</button>
+    <button onclick="execCmd('justifyCenter')">Centro</button>
+    <button onclick="execCmd('justifyRight')">Der</button>
+    <button onclick="execCmd('justifyFull')">Justificar</button>
   </nav>
 
-  <!-- Viewport del documento -->
-  <main class="document-viewport" id="dropZone">
-    <div id="editor" class="page" contenteditable="true" spellcheck="true">
-      <p>Haz clic en <strong>"Abrir .docx"</strong> o <strong>arrastra y suelta</strong> un documento Word aquí.</p>
+  <!-- Viewport donde se despliegan las hojas de Word -->
+  <main class="document-viewport" id="viewport">
+    <div id="document-container">
+      <p style="color:#666; margin-top:50px;">Abre un archivo <strong>.docx</strong> para ver su diseño original idéntico.</p>
     </div>
   </main>
 
-  <footer class="status-bar">
-    <div id="stats">0 palabras &nbsp;|&nbsp; 0 caracteres</div>
-    <div id="docStatus">Listo</div>
+  <footer>
+    <div id="status">Listo para cargar archivo</div>
+    <div>100% Zoom</div>
   </footer>
 
   <script>
-    const editor = document.getElementById('editor');
-    const stats = document.getElementById('stats');
-    const docStatus = document.getElementById('docStatus');
-    const dropZone = document.getElementById('dropZone');
+    const container = document.getElementById('document-container');
+    const statusText = document.getElementById('status');
 
-    function formatDoc(cmd, value = null) {
+    function execCmd(cmd, value = null) {
       document.execCommand(cmd, false, value);
-      editor.focus();
-      updateCounters();
     }
 
-    function updateCounters() {
-      const text = editor.innerText || "";
-      const charCount = text.replace(/\n/g, '').length;
-      const words = text.trim().split(/\s+/).filter(w => w.length > 0);
-      stats.innerHTML = `${words.length} palabras &nbsp;|&nbsp; ${charCount} caracteres`;
-    }
+    function loadFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
 
-    editor.addEventListener('input', updateCounters);
-    editor.addEventListener('keyup', updateCounters);
-
-    // ==========================================
-    // LÓGICA PARA ABRIR Y PROCESAR ARCHIVOS .DOCX
-    // ==========================================
-
-    function loadDocxFile(file) {
-      if (!file.name.endsWith('.docx')) {
-        alert('Por favor selecciona un archivo con extensión .docx');
-        return;
-      }
-
-      docStatus.innerText = "Cargando documento...";
+      statusText.innerText = "Decodificando estilos y diseño original...";
+      container.innerHTML = "";
 
       const reader = new FileReader();
       reader.onload = function(e) {
         const arrayBuffer = e.target.result;
 
-        // Opciones para convertir imágenes incrustadas a base64
-        const options = {
-          convertImage: mammoth.images.imgElement(function(image) {
-            return image.read("base64").then(function(imageBuffer) {
-              return {
-                src: "data:" + image.contentType + ";base64," + imageBuffer
-              };
-            });
-          })
+        // Opciones para exigir máxima fidelidad al estándar Word
+        const docxOptions = {
+          inWrapper: true,              // Agrupa en hojas individuales
+          ignoreWidth: false,           // Respeta el ancho exacto del documento
+          ignoreHeight: false,          // Respeta el alto exacto de página
+          breakPages: true,             // Divide dinámicamente en páginas separadas
+          renderHeaders: true,          // Procesa encabezados originales
+          renderFooters: true,          // Procesa números de página y pies
+          renderFootnotes: true,        // Muestra notas al pie
+          renderEndnotes: true,
+          experimental: true,           // Habilita soporte extendido de tablas y formas
+          useBase64URL: true            // Carga imágenes en máxima resolución
         };
 
-        mammoth.convertToHtml({ arrayBuffer: arrayBuffer }, options)
-          .then(function(result) {
-            editor.innerHTML = result.value;
-            docStatus.innerText = `Abierto: ${file.name}`;
-            updateCounters();
+        docx.renderAsync(arrayBuffer, container, null, docxOptions)
+          .then(() => {
+            statusText.innerText = `Documento cargado: ${file.name}`;
+            
+            // Habilita la edición directa sobre las hojas respetando el maquetado
+            const pages = container.querySelectorAll('.docx');
+            pages.forEach(page => {
+              page.setAttribute('contenteditable', 'true');
+              page.setAttribute('spellcheck', 'true');
+            });
           })
-          .catch(function(err) {
+          .catch(err => {
             console.error(err);
-            alert("Error al leer el archivo Word: " + err.message);
-            docStatus.innerText = "Error";
+            statusText.innerText = "Error al procesar el archivo";
+            alert("No se pudo cargar con fidelidad: " + err.message);
           });
       };
 
       reader.readAsArrayBuffer(file);
     }
-
-    function handleFileSelect(event) {
-      const file = event.target.files[0];
-      if (file) {
-        loadDocxFile(file);
-      }
-    }
-
-    // Soporte para Arrastrar y Soltar (Drag & Drop)
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      if (e.dataTransfer.files.length > 0) {
-        loadDocxFile(e.dataTransfer.files[0]);
-      }
-    });
-
-    updateCounters();
   </script>
 </body>
 </html>
