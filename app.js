@@ -4,9 +4,12 @@ let floatingCounter = 0;
 let docPages = [];
 let currentPage = 0;
 
-// Historial
+// Historial en vivo (Deshacer / Rehacer)
 const undoStack = [];
 const redoStack = [];
+let isInternalUndoRedo = false;
+let inputDebounceTimer = null;
+let lastPageContent = {};
 
 // DOM
 const viewport = document.getElementById('viewport');
@@ -17,12 +20,11 @@ const gridOverlay = document.getElementById('grid-overlay');
 
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
-const btnQuickDelete = document.getElementById('btn-quick-delete');
 const btnEditFloating = document.getElementById('btn-edit-floating');
 const statusBadge = document.getElementById('status-badge');
 const layerBadge = document.getElementById('layer-badge');
 
-// Controles simplificados (solo números)
+// Paginador simplificado (solo números directos)
 const btnPageSelector = document.getElementById('btn-page-selector');
 const btnPrevPage = document.getElementById('btn-prev-page');
 const btnNextPage = document.getElementById('btn-next-page');
@@ -68,7 +70,7 @@ let isItalicActive = false;
 let isEditingDocActive = false;
 
 // =========================================================
-// HISTORIAL (DESHACER / REHACER)
+// SISTEMA DE HISTORIAL (DESHACER / REHACER ACTIVO)
 // =========================================================
 function updateUndoRedoUI() {
   btnUndo.disabled = undoStack.length === 0;
@@ -76,51 +78,65 @@ function updateUndoRedoUI() {
 }
 
 function pushHistoryAction(action) {
+  if (isInternalUndoRedo) return;
   undoStack.push(action);
-  redoStack.length = 0;
+  redoStack.length = 0; // Limpiar rehacer
   updateUndoRedoUI();
 }
 
 function undo() {
   if (undoStack.length === 0) return;
+  isInternalUndoRedo = true;
   const action = undoStack.pop();
 
-  if (action.type === 'DOC_PAGE_EDIT') {
-    action.pageElement.innerHTML = action.prevHTML;
+  if (action.type === 'PAGE_TEXT_INPUT') {
+    docPages[action.pageIndex].innerHTML = action.prevHTML;
+    lastPageContent[action.pageIndex] = action.prevHTML;
   } else if (action.type === 'FLOATING_ADD') {
     action.element.remove();
     clearSelection();
-  } else if (action.type === 'FLOATING_REMOVE') {
-    docPages[action.pageIndex].appendChild(action.element);
-    selectFloatingItem(action.element);
   }
 
   redoStack.push(action);
+  isInternalUndoRedo = false;
   updateUndoRedoUI();
   statusBadge.textContent = 'Acción deshecha';
 }
 
 function redo() {
   if (redoStack.length === 0) return;
+  isInternalUndoRedo = true;
   const action = redoStack.pop();
 
-  if (action.type === 'DOC_PAGE_EDIT') {
-    action.pageElement.innerHTML = action.newHTML;
+  if (action.type === 'PAGE_TEXT_INPUT') {
+    docPages[action.pageIndex].innerHTML = action.newHTML;
+    lastPageContent[action.pageIndex] = action.newHTML;
   } else if (action.type === 'FLOATING_ADD') {
     docPages[action.pageIndex].appendChild(action.element);
     selectFloatingItem(action.element);
-  } else if (action.type === 'FLOATING_REMOVE') {
-    action.element.remove();
-    clearSelection();
   }
 
   undoStack.push(action);
+  isInternalUndoRedo = false;
   updateUndoRedoUI();
   statusBadge.textContent = 'Acción rehecha';
 }
 
 btnUndo.addEventListener('click', undo);
 btnRedo.addEventListener('click', redo);
+
+// Atajos de teclado Ctrl+Z / Ctrl+Y
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA') return;
+
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    e.shiftKey ? redo() : undo();
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+    e.preventDefault();
+    redo();
+  }
+});
 
 // =========================================================
 // NAVEGACIÓN Y ZOOM MULTITÁCTIL CON 2 DEDOS
@@ -189,7 +205,7 @@ viewport.addEventListener('touchend', (e) => {
 });
 
 // =========================================================
-// CARGA CON MÁXIMA FIDELIDAD (ELIMINA HOJAS FANTASMA)
+// CARGA Y ELIMINACIÓN DE HOJAS FANTASMA
 // =========================================================
 docxInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -205,7 +221,7 @@ docxInput.addEventListener('change', async (e) => {
       const arrayBuffer = event.target.result;
       docContent.innerHTML = '';
 
-      // Opciones críticas: ignoreLastRenderedPageBreak: true evita duplicar hojas
+      // Opciones de máxima fidelidad
       const options = {
         className: 'docx',
         inWrapper: false,
@@ -213,7 +229,7 @@ docxInput.addEventListener('change', async (e) => {
         ignoreHeight: false,
         ignoreFonts: false,
         breakPages: true,
-        ignoreLastRenderedPageBreak: true, // CLAVE: evita que 2 páginas se conviertan en 4
+        ignoreLastRenderedPageBreak: true, // Ignora cortes de página fantasmas de Word
         experimental: false,
         trimXmlDeclaration: true,
         useBase64URL: true,
@@ -225,16 +241,34 @@ docxInput.addEventListener('change', async (e) => {
 
       await docx.renderAsync(arrayBuffer, docContent, null, options);
 
-      // Detectar las páginas reales
-      const sections = docContent.querySelectorAll('section.docx');
-      if (sections.length > 0) {
-        docPages = Array.from(sections);
-      } else {
-        docPages = [docContent];
+      // Detectar secciones generadas
+      let sections = Array.from(docContent.querySelectorAll('section.docx'));
+
+      // FILTRO INTELIGENTE: Eliminar páginas vacías al final causadas por saltos residuales de Word
+      for (let i = sections.length - 1; i > 0; i--) {
+        const sec = sections[i];
+        const hasMedia = sec.querySelector('img, table, canvas, svg');
+        const text = (sec.innerText || '').trim();
+        // Si no tiene imágenes, tablas y su texto es nulo, es una hoja fantasma y se elimina
+        if (!hasMedia && text.length === 0) {
+          sec.remove();
+        }
       }
+
+      // Re-consultar las secciones limpias definitivas
+      sections = Array.from(docContent.querySelectorAll('section.docx'));
+      docPages = sections.length > 0 ? sections : [docContent];
 
       emptyState.style.display = 'none';
       sheetWrapper.style.display = 'block';
+
+      // Inicializar historial de contenido
+      lastPageContent = {};
+      docPages.forEach((sec, idx) => {
+        lastPageContent[idx] = sec.innerHTML;
+        // Escuchar cambios de escritura para el historial de Deshacer
+        sec.addEventListener('input', () => onPageInput(idx));
+      });
 
       setupPagination();
       showPage(0);
@@ -250,8 +284,29 @@ docxInput.addEventListener('change', async (e) => {
   reader.readAsArrayBuffer(file);
 });
 
+// Captura continua de texto para Deshacer
+function onPageInput(pageIdx) {
+  clearTimeout(inputDebounceTimer);
+  inputDebounceTimer = setTimeout(() => {
+    const sec = docPages[pageIdx];
+    if (!sec) return;
+    const currentHTML = sec.innerHTML;
+    const previousHTML = lastPageContent[pageIdx];
+
+    if (currentHTML !== previousHTML) {
+      pushHistoryAction({
+        type: 'PAGE_TEXT_INPUT',
+        pageIndex: pageIdx,
+        prevHTML: previousHTML,
+        newHTML: currentHTML
+      });
+      lastPageContent[pageIdx] = currentHTML;
+    }
+  }, 400); // 400ms tras dejar de teclear guarda el estado
+}
+
 // =========================================================
-// SISTEMA NUMÉRICO SIMPLIFICADO DE NAVEGACIÓN
+// SISTEMA NUMÉRICO DE NAVEGACIÓN (1 / 2)
 // =========================================================
 function setupPagination() {
   const total = docPages.length;
@@ -266,13 +321,13 @@ function setupPagination() {
     btnNextPage.style.display = 'none';
   }
 
-  // Generar cuadrícula en el modal con números directos
+  // Generar cuadrícula en el modal con números directos: 1, 2, 3...
   pageButtonsGrid.innerHTML = '';
   for (let i = 0; i < total; i++) {
     const tile = document.createElement('button');
     tile.className = 'page-num-tile';
     tile.dataset.pageIndex = i;
-    tile.textContent = `${i + 1}`; // Solo el número (ej: 1, 2, 3)
+    tile.textContent = `${i + 1}`;
     tile.addEventListener('click', () => {
       showPage(i);
       closeModal();
@@ -298,7 +353,7 @@ function showPage(pageIndex) {
     }
   });
 
-  // Mostrar solo el número actual / total (ej: 1 / 2)
+  // Mostrar solo el número actual y el total (ej: 1 / 2)
   pageIndicator.textContent = `${currentPage + 1} / ${docPages.length}`;
   btnPrevPage.disabled = (currentPage === 0);
   btnNextPage.disabled = (currentPage === docPages.length - 1);
@@ -330,8 +385,6 @@ pageModalBackdrop.addEventListener('click', (e) => {
 // =========================================================
 // MODO EDICIÓN DIRECTA EN LA HOJA
 // =========================================================
-let pageHTMLBeforeEdit = '';
-
 btnToggleDocEdit.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
   isEditingDocActive = !isEditingDocActive;
@@ -344,19 +397,9 @@ btnToggleDocEdit.addEventListener('click', () => {
   btnToggleDocEdit.classList.toggle('active-state', isEditingDocActive);
 
   if (isEditingDocActive) {
-    pageHTMLBeforeEdit = activeSec.innerHTML;
     statusBadge.textContent = `✏️ Editando (${currentPage + 1})`;
     activeSec.focus();
   } else {
-    if (activeSec.innerHTML !== pageHTMLBeforeEdit) {
-      pushHistoryAction({
-        type: 'DOC_PAGE_EDIT',
-        pageElement: activeSec,
-        pageIndex: currentPage,
-        prevHTML: pageHTMLBeforeEdit,
-        newHTML: activeSec.innerHTML
-      });
-    }
     statusBadge.textContent = `Listo (${currentPage + 1})`;
   }
 });
@@ -371,7 +414,6 @@ function selectFloatingItem(item) {
 
   layerBadge.style.display = 'inline-block';
   layerBadge.textContent = `Capa #${item.dataset.layerId}`;
-  btnQuickDelete.disabled = false;
 
   btnEditFloating.disabled = (item.dataset.type !== 'text');
   precisionTools.classList.add('visible');
@@ -381,7 +423,6 @@ function clearSelection() {
   if (activeFloatingItem) activeFloatingItem.classList.remove('selected');
   activeFloatingItem = null;
   layerBadge.style.display = 'none';
-  btnQuickDelete.disabled = true;
   btnEditFloating.disabled = true;
   precisionTools.classList.remove('visible');
 }
@@ -444,16 +485,6 @@ function makeFloatingDraggable(el) {
 
   el.addEventListener('pointerdown', onDown);
 }
-
-btnQuickDelete.addEventListener('click', () => {
-  if (!activeFloatingItem) return;
-  const removed = activeFloatingItem;
-  const pageIdx = parseInt(removed.dataset.pageIndex, 10);
-  removed.remove();
-  pushHistoryAction({ type: 'FLOATING_REMOVE', element: removed, pageIndex: pageIdx });
-  clearSelection();
-  statusBadge.textContent = 'Capa eliminada';
-});
 
 // =========================================================
 // CRUCETA (D-PAD) MILIMÉTRICA PÍXEL A PÍXEL
@@ -650,7 +681,7 @@ btnExportPdf.addEventListener('click', () => {
 
   statusBadge.textContent = 'Generando PDF...';
 
-  // Mostrar todas las hojas ordenadas para que html2pdf las compile
+  // Mostrar todas las hojas en orden para compilar el PDF completo
   docPages.forEach(sec => {
     sec.style.display = 'block';
     sec.style.marginBottom = '0px';
