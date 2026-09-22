@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Editor de Documentos Web</title>
+  <title>Editor Word Web - Con apertura de .docx</title>
+  
+  <!-- Mammoth.js para procesar archivos .docx nativos -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
   <style>
     :root {
       --office-blue: #005a9e;
@@ -30,7 +34,7 @@
       overflow: hidden;
     }
 
-    /* Barra de título superior */
+    /* Barra superior */
     header {
       background-color: var(--office-blue);
       color: white;
@@ -44,10 +48,33 @@
     header h1 {
       font-size: 16px;
       font-weight: 600;
-      letter-spacing: 0.5px;
     }
 
-    /* Cinta de herramientas (Ribbon) */
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-header {
+      background: #ffffff;
+      color: var(--office-blue);
+      border: none;
+      padding: 6px 14px;
+      border-radius: 3px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-header:hover {
+      background: #f3f2f1;
+    }
+
+    /* Cinta de opciones (Ribbon) */
     .ribbon {
       background-color: var(--toolbar-bg);
       border-bottom: 1px solid var(--border-color);
@@ -76,9 +103,6 @@
       font-size: 13px;
       font-weight: 600;
       color: var(--text-main);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
       min-width: 28px;
       height: 28px;
     }
@@ -88,48 +112,36 @@
       border-color: #c8c6c4;
     }
 
-    .ribbon button:active {
-      background-color: #edebe9;
-    }
-
     .ribbon select {
       padding: 4px 6px;
       font-size: 13px;
       border: 1px solid var(--border-color);
       border-radius: 2px;
       background: white;
-      outline: none;
       height: 28px;
     }
 
-    .color-picker-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-
-    .color-picker-wrapper input[type="color"] {
-      border: none;
-      width: 24px;
-      height: 24px;
-      cursor: pointer;
-      background: transparent;
-    }
-
-    /* Contenedor del documento y hoja A4 */
+    /* Lienzo y hoja */
     .document-viewport {
       flex: 1;
       overflow-y: auto;
       padding: 30px 16px;
       display: flex;
       justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .document-viewport.drag-over {
+      background-color: #c7e0f4;
+      outline: 2px dashed var(--office-blue);
+      outline-offset: -10px;
     }
 
     .page {
       background: white;
       width: 210mm;
       min-height: 297mm;
-      padding: 25.4mm; /* Margen estándar de 1 pulgada */
+      padding: 25.4mm;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       border: 1px solid #c8c6c4;
       outline: none;
@@ -140,7 +152,25 @@
       word-break: break-word;
     }
 
-    /* Barra de estado inferior */
+    /* Soporte visual para tablas e imágenes importadas de Word */
+    .page table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+    }
+
+    .page table, .page th, .page td {
+      border: 1px solid #8a8886;
+      padding: 6px 10px;
+    }
+
+    .page img {
+      max-width: 100%;
+      height: auto;
+      margin: 8px 0;
+    }
+
+    /* Barra de estado */
     footer.status-bar {
       background-color: var(--office-blue);
       color: #fff;
@@ -152,153 +182,172 @@
       align-items: center;
     }
 
-    /* Estilos para impresión / exportación a PDF */
     @media print {
-      body {
-        background: transparent;
-        overflow: visible;
-      }
-      header, .ribbon, footer.status-bar {
-        display: none !important;
-      }
-      .document-viewport {
-        padding: 0;
-        overflow: visible;
-      }
-      .page {
-        border: none;
-        box-shadow: none;
-        padding: 0;
-        margin: 0;
-        width: 100%;
-        min-height: 100%;
-      }
+      body { background: transparent; overflow: visible; }
+      header, .ribbon, footer.status-bar { display: none !important; }
+      .document-viewport { padding: 0; overflow: visible; }
+      .page { border: none; box-shadow: none; padding: 0; width: 100%; min-height: 100%; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Encabezado superior -->
   <header>
     <h1>Word Web Editor</h1>
-    <div>
-      <button onclick="window.print()" style="background:#fff; color:var(--office-blue); border:none; padding:4px 12px; border-radius:2px; font-weight:600; cursor:pointer;">
-        Exportar / Imprimir PDF
+    <div class="header-actions">
+      <!-- Input oculto para cargar archivos -->
+      <input type="file" id="docxInput" accept=".docx" style="display:none" onchange="handleFileSelect(event)">
+      
+      <button class="btn-header" onclick="document.getElementById('docxInput').click()">
+        📁 Abrir .docx
+      </button>
+      <button class="btn-header" onclick="window.print()">
+        🖨️ Imprimir / PDF
       </button>
     </div>
   </header>
 
-  <!-- Cinta de herramientas (Ribbon) -->
+  <!-- Ribbon -->
   <nav class="ribbon">
-    <!-- Grupo: Tipografía -->
     <div class="toolbar-group">
-      <select id="fontFamily" onchange="formatDoc('fontName', this.value)">
+      <select onchange="formatDoc('fontName', this.value)">
         <option value="Calibri" selected>Calibri</option>
         <option value="Arial">Arial</option>
         <option value="Times New Roman">Times New Roman</option>
         <option value="Georgia">Georgia</option>
-        <option value="Courier New">Courier New</option>
       </select>
 
-      <select id="fontSize" onchange="formatDoc('fontSize', this.value)">
+      <select onchange="formatDoc('fontSize', this.value)">
         <option value="1">8 pt</option>
         <option value="2">10 pt</option>
         <option value="3" selected>11 pt</option>
         <option value="4">14 pt</option>
         <option value="5">18 pt</option>
         <option value="6">24 pt</option>
-        <option value="7">36 pt</option>
       </select>
     </div>
 
-    <!-- Grupo: Estilos básicos -->
     <div class="toolbar-group">
-      <button title="Negrita (Ctrl+B)" onclick="formatDoc('bold')"><b>N</b></button>
-      <button title="Cursiva (Ctrl+I)" onclick="formatDoc('italic')"><i>K</i></button>
-      <button title="Subrayado (Ctrl+U)" onclick="formatDoc('underline')"><u>S</u></button>
-      <button title="Tachado" onclick="formatDoc('strikeThrough')"><s>T</s></button>
+      <button title="Negrita" onclick="formatDoc('bold')"><b>N</b></button>
+      <button title="Cursiva" onclick="formatDoc('italic')"><i>K</i></button>
+      <button title="Subrayado" onclick="formatDoc('underline')"><u>S</u></button>
     </div>
 
-    <!-- Grupo: Colores -->
     <div class="toolbar-group">
-      <div class="color-picker-wrapper" title="Color de texto">
-        <label for="foreColor" style="font-size:11px; margin-right:3px;">Color:</label>
-        <input type="color" id="foreColor" value="#000000" onchange="formatDoc('foreColor', this.value)">
-      </div>
-      <div class="color-picker-wrapper" title="Color de resaltado">
-        <label for="hiliteColor" style="font-size:11px; margin-right:3px;">Fondo:</label>
-        <input type="color" id="hiliteColor" value="#ffffff" onchange="formatDoc('hiliteColor', this.value)">
-      </div>
-    </div>
-
-    <!-- Grupo: Párrafo y Alineación -->
-    <div class="toolbar-group">
-      <button title="Alinear a la izquierda" onclick="formatDoc('justifyLeft')">Izq</button>
-      <button title="Centrar" onclick="formatDoc('justifyCenter')">Cen</button>
-      <button title="Alinear a la derecha" onclick="formatDoc('justifyRight')">Der</button>
+      <button title="Izquierda" onclick="formatDoc('justifyLeft')">Izq</button>
+      <button title="Centro" onclick="formatDoc('justifyCenter')">Cen</button>
+      <button title="Derecha" onclick="formatDoc('justifyRight')">Der</button>
       <button title="Justificar" onclick="formatDoc('justifyFull')">Just</button>
     </div>
 
-    <!-- Grupo: Listas e Indentación -->
     <div class="toolbar-group">
       <button title="Lista con viñetas" onclick="formatDoc('insertUnorderedList')">• Lista</button>
       <button title="Lista numerada" onclick="formatDoc('insertOrderedList')">1. Lista</button>
     </div>
-
-    <!-- Grupo: Encabezados -->
-    <div class="toolbar-group">
-      <select onchange="formatDoc('formatBlock', this.value)">
-        <option value="<p>" selected>Normal</option>
-        <option value="<h1>">Título 1</option>
-        <option value="<h2>">Título 2</option>
-        <option value="<h3>">Título 3</option>
-      </select>
-    </div>
   </nav>
 
-  <!-- Área de trabajo (Lienzo tipo hoja) -->
-  <main class="document-viewport">
-    <div 
-      id="editor" 
-      class="page" 
-      contenteditable="true" 
-      spellcheck="true"
-    >
-      <p>Comienza a escribir tu documento aquí...</p>
+  <!-- Viewport del documento -->
+  <main class="document-viewport" id="dropZone">
+    <div id="editor" class="page" contenteditable="true" spellcheck="true">
+      <p>Haz clic en <strong>"Abrir .docx"</strong> o <strong>arrastra y suelta</strong> un documento Word aquí.</p>
     </div>
   </main>
 
-  <!-- Barra de estado -->
   <footer class="status-bar">
-    <div id="stats">Página 1 de 1 &nbsp;|&nbsp; 0 palabras &nbsp;|&nbsp; 0 caracteres</div>
-    <div>Español &nbsp;|&nbsp; 100%</div>
+    <div id="stats">0 palabras &nbsp;|&nbsp; 0 caracteres</div>
+    <div id="docStatus">Listo</div>
   </footer>
 
   <script>
     const editor = document.getElementById('editor');
     const stats = document.getElementById('stats');
+    const docStatus = document.getElementById('docStatus');
+    const dropZone = document.getElementById('dropZone');
 
-    // Ejecución de comandos del editor
     function formatDoc(cmd, value = null) {
       document.execCommand(cmd, false, value);
       editor.focus();
       updateCounters();
     }
 
-    // Actualización del conteo de palabras y caracteres
     function updateCounters() {
       const text = editor.innerText || "";
       const charCount = text.replace(/\n/g, '').length;
       const words = text.trim().split(/\s+/).filter(w => w.length > 0);
-      const wordCount = words.length;
-
-      stats.innerHTML = `Página 1 de 1 &nbsp;|&nbsp; ${wordCount} palabras &nbsp;|&nbsp; ${charCount} caracteres`;
+      stats.innerHTML = `${words.length} palabras &nbsp;|&nbsp; ${charCount} caracteres`;
     }
 
     editor.addEventListener('input', updateCounters);
     editor.addEventListener('keyup', updateCounters);
 
-    // Inicializar estadísticas
+    // ==========================================
+    // LÓGICA PARA ABRIR Y PROCESAR ARCHIVOS .DOCX
+    // ==========================================
+
+    function loadDocxFile(file) {
+      if (!file.name.endsWith('.docx')) {
+        alert('Por favor selecciona un archivo con extensión .docx');
+        return;
+      }
+
+      docStatus.innerText = "Cargando documento...";
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+
+        // Opciones para convertir imágenes incrustadas a base64
+        const options = {
+          convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+              return {
+                src: "data:" + image.contentType + ";base64," + imageBuffer
+              };
+            });
+          })
+        };
+
+        mammoth.convertToHtml({ arrayBuffer: arrayBuffer }, options)
+          .then(function(result) {
+            editor.innerHTML = result.value;
+            docStatus.innerText = `Abierto: ${file.name}`;
+            updateCounters();
+          })
+          .catch(function(err) {
+            console.error(err);
+            alert("Error al leer el archivo Word: " + err.message);
+            docStatus.innerText = "Error";
+          });
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        loadDocxFile(file);
+      }
+    }
+
+    // Soporte para Arrastrar y Soltar (Drag & Drop)
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length > 0) {
+        loadDocxFile(e.dataTransfer.files[0]);
+      }
+    });
+
     updateCounters();
   </script>
 </body>
