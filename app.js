@@ -7,7 +7,7 @@ let currentPageNumber = 1;
 let totalPages = 1;
 const RENDER_SCALE = 1.5;
 
-// Almacén de modificaciones por página { pageNum: { patches: [], fabricObjectsJson: ... } }
+// Almacén de modificaciones por página
 const pagesData = {};
 
 // Historial (Deshacer / Rehacer)
@@ -68,6 +68,7 @@ const btnModeEditText = document.getElementById('btn-mode-edit-text');
 const btnAddText = document.getElementById('btn-add-text');
 const btnWhiteout = document.getElementById('btn-whiteout');
 const btnDraw = document.getElementById('btn-draw');
+const btnDeleteLayer = document.getElementById('btn-delete-layer');
 const btnResetZoom = document.getElementById('btn-reset-zoom');
 const btnSave = document.getElementById('btn-save');
 
@@ -127,13 +128,15 @@ function undo() {
   if (action.type === 'FABRIC_ADD') {
     fabricCanvas.remove(action.object);
     fabricCanvas.renderAll();
+  } else if (action.type === 'FABRIC_REMOVE') {
+    action.objects.forEach(obj => fabricCanvas.add(obj));
+    fabricCanvas.renderAll();
   } else if (action.type === 'TEXT_EDIT') {
     const ctx = pdfCanvas.getContext('2d');
     ctx.putImageData(action.eraseData.imageData, action.eraseData.box.x, action.eraseData.box.y);
     fabricCanvas.remove(action.textRender);
     fabricCanvas.renderAll();
 
-    // Eliminar parche
     const pagePatches = pagesData[currentPageNumber].patches;
     pagesData[currentPageNumber].patches = pagePatches.filter(p => p !== action.patchRef);
   }
@@ -149,6 +152,9 @@ function redo() {
 
   if (action.type === 'FABRIC_ADD') {
     fabricCanvas.add(action.object);
+    fabricCanvas.renderAll();
+  } else if (action.type === 'FABRIC_REMOVE') {
+    action.objects.forEach(obj => fabricCanvas.remove(obj));
     fabricCanvas.renderAll();
   } else if (action.type === 'TEXT_EDIT') {
     const ctx = pdfCanvas.getContext('2d');
@@ -249,47 +255,41 @@ viewport.addEventListener('touchend', (e) => {
 // CONVERSIÓN EN BACKEND DE WORD (.DOCX) A PDF
 // =========================================================
 async function convertDocxToPdfBackend(file) {
-  statusBadge.textContent = 'Convirtiendo Word con fidelidad 100%...';
+  statusBadge.textContent = 'Interpretando Word con fidelidad 100%...';
+  const buffer = await file.arrayBuffer();
 
-  const formData = new FormData();
-  formData.append('file', file);
-
-  // Llamada al endpoint backend (serverless en Vercel)
   const res = await fetch('/api/convert', {
     method: 'POST',
-    body: formData
+    headers: {
+      'Content-Type': 'application/octet-stream'
+    },
+    body: buffer
   });
 
   if (!res.ok) {
-    throw new Error('El servicio de conversión no pudo procesar el archivo Word.');
+    const errorJson = await res.json().catch(() => ({}));
+    throw new Error(errorJson.error || 'El servicio no pudo procesar el archivo Word.');
   }
 
   return await res.arrayBuffer();
 }
 
 // =========================================================
-// CARGA UNIFICADA (WORD O PDF)
+// CARGA EXCLUSIVA DE WORD (.DOCX)
 // =========================================================
 docInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
   sheetBackdrop.classList.remove('active');
-  const isDocx = file.name.endsWith('.docx') || file.type.includes('wordprocessingml');
 
   try {
-    let pdfBuffer;
-    if (isDocx) {
-      pdfBuffer = await convertDocxToPdfBackend(file);
-    } else {
-      pdfBuffer = await file.arrayBuffer();
-    }
+    const pdfBuffer = await convertDocxToPdfBackend(file);
 
     originalPdfBytes = pdfBuffer.slice(0);
     pdfDocInstance = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
     totalPages = pdfDocInstance.numPages;
 
-    // Inicializar almacén por página
     for (let i = 1; i <= totalPages; i++) {
       pagesData[i] = { patches: [], fabricObjectsJson: null };
     }
@@ -300,7 +300,7 @@ docInput.addEventListener('change', async (e) => {
     emptyState.style.display = 'none';
     sheetWrapper.style.display = 'block';
     document.querySelectorAll('.disabled-tool').forEach(b => b.classList.remove('disabled-tool'));
-    statusBadge.textContent = `Documento cargado (${totalPages} pág.)`;
+    statusBadge.textContent = `Word listo (${totalPages} pág.)`;
   } catch (err) {
     console.error(err);
     alert('Error al abrir el documento: ' + err.message);
@@ -312,7 +312,6 @@ docInput.addEventListener('change', async (e) => {
 // RENDERIZADO DE PÁGINAS Y FABRIC
 // =========================================================
 async function loadPage(pageNum) {
-  // Guardar estado de la página previa antes de cambiar
   if (fabricCanvas && pagesData[currentPageNumber]) {
     pagesData[currentPageNumber].fabricObjectsJson = fabricCanvas.toJSON();
   }
@@ -333,7 +332,6 @@ async function loadPage(pageNum) {
     viewport: viewportObj
   }).promise;
 
-  // Recrear canvas de Fabric
   if (fabricCanvas) fabricCanvas.dispose();
   fabricCanvas = new fabric.Canvas('fabric-canvas', {
     isDrawingMode: false,
@@ -372,14 +370,12 @@ async function loadPage(pageNum) {
     pushHistoryAction({ type: 'FABRIC_ADD', object: opt.path });
   });
 
-  // Restaurar objetos previos si existen en esta página
   if (pagesData[pageNum].fabricObjectsJson) {
     await new Promise(resolve => fabricCanvas.loadFromJSON(pagesData[pageNum].fabricObjectsJson, resolve));
   }
 
   await buildSmartTextLayer(page, viewportObj);
 
-  // Actualizar indicadores
   pageIndicator.textContent = `${currentPageNumber} / ${totalPages}`;
   btnPrevPage.disabled = (currentPageNumber === 1);
   btnNextPage.disabled = (currentPageNumber === totalPages);
@@ -992,13 +988,30 @@ imgInput.addEventListener('change', (e) => {
   reader.readAsDataURL(f);
 });
 
+// Eliminar capa seleccionada
+btnDeleteLayer.addEventListener('click', () => {
+  sheetBackdrop.classList.remove('active');
+  if (!fabricCanvas) return;
+  const activeObjects = fabricCanvas.getActiveObjects();
+  if (activeObjects.length > 0) {
+    activeObjects.forEach(obj => fabricCanvas.remove(obj));
+    fabricCanvas.discardActiveObject();
+    fabricCanvas.renderAll();
+    pushHistoryAction({ type: 'FABRIC_REMOVE', objects: activeObjects });
+    clearSelectionUI();
+    statusBadge.textContent = 'Capa eliminada';
+  } else {
+    alert('Toca primero un texto o elemento para seleccionarlo y luego pulsa Eliminar Capa.');
+  }
+});
+
 btnResetZoom.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
   centerDocument(pdfCanvas.width, pdfCanvas.height);
 });
 
 // =========================================================
-// EXPORTACIÓN A PDF COMPLETO (MULTIPÁGINA)
+// EXPORTACIÓN FINAL A PDF
 // =========================================================
 function base64ToUint8Array(dataUrl) {
   const base64 = dataUrl.split(',')[1];
@@ -1039,19 +1052,16 @@ btnSave.addEventListener('click', async () => {
       return res ? PDFLibEngine.rgb(parseInt(res[1], 16) / 255, parseInt(res[2], 16) / 255, parseInt(res[3], 16) / 255) : PDFLibEngine.rgb(0, 0, 0);
     }
 
-    // Guardar estado de la página actual antes de compilar
     if (fabricCanvas && pagesData[currentPageNumber]) {
       pagesData[currentPageNumber].fabricObjectsJson = fabricCanvas.toJSON();
     }
 
-    // Inyectar modificaciones en cada página del PDF
     for (let pNum = 1; pNum <= totalPages; pNum++) {
       const page = pdfDoc.getPage(pNum - 1);
       const { width: pW, height: pH } = page.getSize();
       const pData = pagesData[pNum];
 
       if (pData) {
-        // Parches de texto editado
         for (const patch of pData.patches) {
           const line = patch.originalLine;
           const firstPiece = line.pieces[0];
@@ -1082,7 +1092,6 @@ btnSave.addEventListener('click', async () => {
       }
     }
 
-    // Si la página activa tiene trazos/firmas dibujadas, estampar capa
     const activeObjects = fabricCanvas.getObjects().filter(o => o.type !== 'text');
     if (activeObjects.length > 0) {
       fabricCanvas.getObjects().forEach(o => { if (o.type === 'text') o.visible = false; });
