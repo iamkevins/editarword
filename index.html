@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Word Pro - Fidelidad Real</title>
+  <title>Editor Word Pro - Edición Directa</title>
 
   <!-- Fuentes tipográficas -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
     }
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=11">
+  <link rel="stylesheet" href="./style.css?v=12">
 </head>
 <body>
 
@@ -33,11 +33,8 @@
       <button id="btn-redo" class="nav-btn" disabled title="Rehacer (Ctrl+Y)">
         <span class="icon">↷</span>
       </button>
-      <button id="btn-edit-selected" class="nav-btn btn-edit-nav" disabled title="Modificar texto">
-        <span class="icon">✏️</span>
-      </button>
 
-      <!-- Paginador numérico directo (ej: 1 / 2) -->
+      <!-- Selector de páginas (1 / 2) -->
       <button id="btn-prev-page" class="nav-btn page-arrow" style="display: none;" title="Anterior">◀</button>
       <button id="btn-page-selector" class="nav-btn page-num-btn" style="display: none;" title="Cambiar página">
         <span id="page-indicator">1 / 1</span>
@@ -63,6 +60,7 @@
     <div id="sheet-wrapper">
       <canvas id="pdf-canvas"></canvas>
       <div id="grid-overlay" class="grid-overlay"></div>
+      <!-- Capa de edición directa en el texto -->
       <div id="text-detect-layer" class="text-detect-layer"></div>
       <div class="fabric-wrapper">
         <canvas id="fabric-canvas"></canvas>
@@ -70,7 +68,7 @@
     </div>
   </main>
 
-  <!-- MODAL SELECTOR DIRECTO DE PÁGINAS -->
+  <!-- Modal selector de páginas -->
   <div id="page-modal-backdrop" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
@@ -81,7 +79,7 @@
     </div>
   </div>
 
-  <!-- CRUCETA (D-PAD) Y GRILLA -->
+  <!-- Cruceta táctil y botón de grilla para elementos movibles -->
   <div id="precision-tools" class="precision-tools">
     <button id="btn-toggle-grid" class="grid-toggle-btn" title="Mostrar/Ocultar Grilla">
       <span class="grid-icon">⊞</span>
@@ -97,88 +95,24 @@
     </div>
   </div>
 
-  <!-- Modal de modificación de textos -->
-  <div id="inline-editor-card" class="inline-editor-card">
-    <div class="editor-header">
-      <span id="editor-title">✏️ Modificar Texto</span>
-      <button id="close-inline-editor" class="btn-icon">✕</button>
-    </div>
-
-    <div class="font-toolbar">
-      <select id="font-family-select" class="font-select">
-        <optgroup label="Sans-Serif">
-          <option value="Arial">Arial / Helvetica</option>
-          <option value="Roboto">Roboto</option>
-          <option value="Open Sans">Open Sans</option>
-          <option value="Montserrat">Montserrat</option>
-          <option value="Poppins">Poppins</option>
-          <option value="Inter">Inter</option>
-          <option value="Lato">Lato</option>
-        </optgroup>
-        <optgroup label="Serif">
-          <option value="Times New Roman">Times New Roman</option>
-          <option value="Georgia">Georgia</option>
-          <option value="EB Garamond">Garamond</option>
-          <option value="Playfair Display">Playfair Display</option>
-          <option value="Merriweather">Merriweather</option>
-        </optgroup>
-        <optgroup label="Monoespaciadas">
-          <option value="Courier New">Courier New</option>
-          <option value="Consolas">Consolas</option>
-        </optgroup>
-        <optgroup label="Otras">
-          <option value="Pacifico">Pacifico</option>
-          <option value="Dancing Script">Dancing Script</option>
-          <option value="Caveat">Caveat</option>
-          <option value="Impact">Impact</option>
-        </optgroup>
-      </select>
-
-      <div class="font-styles">
-        <button id="btn-toggle-bold" class="style-toggle" type="button"><b>B</b></button>
-        <button id="btn-toggle-italic" class="style-toggle" type="button"><i>I</i></button>
-      </div>
-
-      <div class="font-size-ctrl">
-        <button id="btn-size-dec" class="size-btn" type="button">-</button>
-        <input type="number" id="font-size-input" class="size-input" min="6" max="90" value="14">
-        <button id="btn-size-inc" class="size-btn" type="button">+</button>
-      </div>
-
-      <input type="color" id="font-color-picker" class="color-picker" value="#000000">
-    </div>
-
-    <textarea id="inline-editor-input" rows="3" placeholder="Escribe el texto aquí..."></textarea>
-
-    <div class="editor-actions">
-      <button id="btn-center-text" class="btn-action secondary">🎯 Centrar</button>
-      <button id="btn-apply-text" class="btn-action primary">Aplicar</button>
-    </div>
-  </div>
-
   <!-- Botón flotante -->
   <button class="fab-main-trigger" id="open-tools-btn">
     <span>🛠️</span>
     <span>Herramientas</span>
   </button>
 
-  <!-- Panel desplegable -->
+  <!-- Menú de herramientas -->
   <div class="sheet-backdrop" id="sheet-backdrop">
     <div class="tools-panel">
       <div class="panel-header">
-        <span class="panel-title">Herramientas de Edición</span>
+        <span class="panel-title">Opciones</span>
         <button class="panel-close" id="close-tools-btn">✕</button>
       </div>
 
       <div class="tools-grid">
         <button class="tool-btn highlight disabled-tool" id="btn-mode-edit-text">
-          <span class="icon">📝</span>
-          <span>Editar Texto</span>
-        </button>
-
-        <button class="tool-btn disabled-tool" id="btn-add-text">
-          <span class="icon">🔤</span>
-          <span>Añadir Texto</span>
+          <span class="icon">✏️</span>
+          <span>Modo Escribir</span>
         </button>
 
         <button class="tool-btn disabled-tool" id="btn-whiteout">
@@ -187,17 +121,16 @@
         </button>
 
         <button class="tool-btn disabled-tool" id="btn-draw">
-          <span class="icon">✏️</span>
+          <span class="icon">🖊️</span>
           <span>Firmar / Lápiz</span>
         </button>
 
         <label class="tool-btn disabled-tool" for="img-input" style="cursor:pointer;">
           <span class="icon">🖼️</span>
-          <span>Subir Firma/Foto</span>
+          <span>Insertar Foto</span>
         </label>
         <input type="file" id="img-input" accept="image/png, image/jpeg" style="display:none;">
 
-        <!-- Solo acepta archivos Word (.docx) -->
         <label class="tool-btn" for="doc-input" style="cursor:pointer;">
           <span class="icon">📁</span>
           <span>Abrir Word (.docx)</span>
@@ -214,7 +147,6 @@
           <span>Centrar Vista</span>
         </button>
 
-        <!-- Exportar el documento final a PDF -->
         <button class="tool-btn success disabled-tool" id="btn-save">
           <span class="icon">💾</span>
           <span>Exportar a PDF</span>
@@ -223,6 +155,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=11"></script>
+  <script src="./app.js?v=12"></script>
 </body>
 </html>
