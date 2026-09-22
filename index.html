@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Word Pro - Fidelidad Real</title>
+  <title>Editor Word Pro - Fidelidad y Multipágina</title>
 
   <!-- Fuentes tipográficas -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,27 +17,22 @@
   <!-- 3. html2pdf.js: Exportador a PDF de alta resolución -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <link rel="stylesheet" href="./style.css?v=7">
+  <link rel="stylesheet" href="./style.css?v=8">
 </head>
 <body>
 
   <!-- Barra superior -->
   <header class="top-nav">
     <div class="history-controls">
+      <!-- Deshacer y Rehacer -->
       <button id="btn-undo" class="nav-btn" disabled title="Deshacer (Ctrl+Z)">
         <span class="icon">↶</span>
       </button>
       <button id="btn-redo" class="nav-btn" disabled title="Rehacer (Ctrl+Y)">
         <span class="icon">↷</span>
       </button>
-      <button id="btn-quick-delete" class="nav-btn btn-x-delete" disabled title="Eliminar cuadro">
-        <span class="icon">✕</span>
-      </button>
-      <button id="btn-edit-floating" class="nav-btn btn-edit-nav" disabled title="Modificar texto">
-        <span class="icon">✏️</span>
-      </button>
 
-      <!-- Selector numérico (solo aparece si hay más de 1 hoja) -->
+      <!-- Selector numérico directo (ej: 1 / 2) -->
       <button id="btn-prev-page" class="nav-btn page-arrow" style="display: none;" title="Anterior">◀</button>
       <button id="btn-page-selector" class="nav-btn page-num-btn" style="display: none;" title="Cambiar hoja">
         <span id="page-indicator">1 / 1</span>
@@ -206,6 +201,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=7"></script>
+  <script src="./app.js?v=8"></script>
 </body>
 </html>
