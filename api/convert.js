@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 
     // 2. Enviar a motor de conversión oficial (ejemplo Gotenberg / Cloudmersive)
     // Cloudmersive permite 800 conversiones gratuitas al mes con una API Key gratuita de https://cloudmersive.com/
-    const apiKey = process.env.CLOUDMERSIVE_API_KEY || 'TU_API_KEY_AQUI';
+    const apiKey = process.env.CLOUDMERSIVE_API_KEY || 'f7fdc218-4f8f-42e8-b328-265fa06b4036';
 
     const response = await fetch('https://api.cloudmersive.com/convert/docx/to/pdf', {
       method: 'POST',
