@@ -1,7 +1,8 @@
-
 let currentFileName = 'documento';
 let activeFloatingItem = null;
 let floatingCounter = 0;
+let docPages = [];       // Contiene todas las páginas reales generadas por docx-preview
+let currentPage = 0;      // Índice de la página actualmente visible
 
 // Historial
 const undoStack = [];
@@ -11,7 +12,6 @@ const redoStack = [];
 const viewport = document.getElementById('viewport');
 const sheetWrapper = document.getElementById('sheet-wrapper');
 const docContent = document.getElementById('doc-content');
-const floatingLayer = document.getElementById('floating-layer');
 const emptyState = document.getElementById('empty-state');
 const gridOverlay = document.getElementById('grid-overlay');
 
@@ -22,6 +22,16 @@ const btnEditFloating = document.getElementById('btn-edit-floating');
 const statusBadge = document.getElementById('status-badge');
 const layerBadge = document.getElementById('layer-badge');
 
+// Controles del selector de páginas
+const btnPageSelector = document.getElementById('btn-page-selector');
+const btnPrevPage = document.getElementById('btn-prev-page');
+const btnNextPage = document.getElementById('btn-next-page');
+const pageIndicator = document.getElementById('page-indicator');
+const pageModalBackdrop = document.getElementById('page-modal-backdrop');
+const closePageModal = document.getElementById('close-page-modal');
+const modalTotalPages = document.getElementById('modal-total-pages');
+const pageButtonsGrid = document.getElementById('page-buttons-grid');
+
 // Herramientas flotantes
 const precisionTools = document.getElementById('precision-tools');
 const btnToggleGrid = document.getElementById('btn-toggle-grid');
@@ -29,7 +39,7 @@ const openToolsBtn = document.getElementById('open-tools-btn');
 const closeToolsBtn = document.getElementById('close-tools-btn');
 const sheetBackdrop = document.getElementById('sheet-backdrop');
 
-// Modal editor
+// Modal editor de textos flotantes
 const inlineEditorCard = document.getElementById('inline-editor-card');
 const inlineEditorInput = document.getElementById('inline-editor-input');
 const editorTitle = document.getElementById('editor-title');
@@ -37,7 +47,7 @@ const closeInlineEditor = document.getElementById('close-inline-editor');
 const btnApplyFloating = document.getElementById('btn-apply-floating');
 const btnCenterFloating = document.getElementById('btn-center-floating');
 
-// Opciones de tipografía
+// Tipografías
 const fontFamilySelect = document.getElementById('font-family-select');
 const btnToggleBold = document.getElementById('btn-toggle-bold');
 const btnToggleItalic = document.getElementById('btn-toggle-italic');
@@ -46,14 +56,13 @@ const btnSizeDec = document.getElementById('btn-size-dec');
 const btnSizeInc = document.getElementById('btn-size-inc');
 const fontColorPicker = document.getElementById('font-color-picker');
 
-// Herramientas del menú
+// Menú
 const docxInput = document.getElementById('docx-input');
 const imgInput = document.getElementById('img-input');
 const btnToggleDocEdit = document.getElementById('btn-toggle-doc-edit');
 const btnAddFloatingText = document.getElementById('btn-add-floating-text');
 const btnResetZoom = document.getElementById('btn-reset-zoom');
 const btnExportPdf = document.getElementById('btn-export-pdf');
-const btnExportDocx = document.getElementById('btn-export-docx');
 
 let isBoldActive = false;
 let isItalicActive = false;
@@ -77,13 +86,13 @@ function undo() {
   if (undoStack.length === 0) return;
   const action = undoStack.pop();
 
-  if (action.type === 'DOC_TEXT_CHANGE') {
-    docContent.innerHTML = action.prevHTML;
+  if (action.type === 'DOC_PAGE_EDIT') {
+    action.pageElement.innerHTML = action.prevHTML;
   } else if (action.type === 'FLOATING_ADD') {
     action.element.remove();
     clearSelection();
   } else if (action.type === 'FLOATING_REMOVE') {
-    floatingLayer.appendChild(action.element);
+    docPages[action.pageIndex].appendChild(action.element);
     selectFloatingItem(action.element);
   }
 
@@ -96,10 +105,10 @@ function redo() {
   if (redoStack.length === 0) return;
   const action = redoStack.pop();
 
-  if (action.type === 'DOC_TEXT_CHANGE') {
-    docContent.innerHTML = action.newHTML;
+  if (action.type === 'DOC_PAGE_EDIT') {
+    action.pageElement.innerHTML = action.newHTML;
   } else if (action.type === 'FLOATING_ADD') {
-    floatingLayer.appendChild(action.element);
+    docPages[action.pageIndex].appendChild(action.element);
     selectFloatingItem(action.element);
   } else if (action.type === 'FLOATING_REMOVE') {
     action.element.remove();
@@ -125,13 +134,13 @@ function updateTransform() {
   sheetWrapper.style.transform = `translate3d(${panX}px, ${panY}px, 0px) scale(${zoom})`;
 }
 
-function centerDocument(w = 794) {
+function centerDocument(w = 794, h = 1123) {
   const vW = window.innerWidth;
   const vH = window.innerHeight;
   const scale = (vW * 0.92) / w;
   zoom = Math.min(scale, 1.0);
   panX = (vW - (w * zoom)) / 2;
-  panY = Math.max(30, (vH - (1123 * zoom)) / 2);
+  panY = Math.max(25, (vH - (h * zoom)) / 2);
   updateTransform();
 }
 
@@ -181,7 +190,7 @@ viewport.addEventListener('touchend', (e) => {
 });
 
 // =========================================================
-// CARGA Y PARSEO DE ARCHIVOS WORD (.docx)
+// CARGA CON ALTA FIDELIDAD (DOCX-PREVIEW + JSZIP)
 // =========================================================
 docxInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -189,62 +198,177 @@ docxInput.addEventListener('change', async (e) => {
 
   currentFileName = file.name.replace(/\.[^/.]+$/, "");
   sheetBackdrop.classList.remove('active');
-  statusBadge.textContent = 'Leyendo documento Word...';
+  statusBadge.textContent = 'Procesando formato exacto...';
 
   const reader = new FileReader();
   reader.onload = async (event) => {
     try {
       const arrayBuffer = event.target.result;
-      const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
-      
-      docContent.innerHTML = result.value || '<p>Documento vacío.</p>';
-      
+      docContent.innerHTML = '';
+
+      // Opciones para mantener saltos de página y estilos nativos de Word
+      const options = {
+        className: 'docx',
+        inWrapper: false,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        ignoreFonts: false,
+        breakPages: true,
+        ignoreLastRenderedPageBreak: false, // Respeta los saltos de página de Microsoft Word
+        renderHeaders: true,
+        renderFooters: true,
+        renderFootnotes: true,
+        renderEndnotes: true
+      };
+
+      await docx.renderAsync(arrayBuffer, docContent, null, options);
+
+      // Detectar las páginas generadas (cada section.docx es una hoja)
+      const sections = docContent.querySelectorAll('section.docx');
+      if (sections.length > 0) {
+        docPages = Array.from(sections);
+      } else {
+        // En caso de que no tenga saltos de página explícitos
+        docPages = [docContent];
+      }
+
       emptyState.style.display = 'none';
       sheetWrapper.style.display = 'block';
 
-      centerDocument();
+      setupPagination();
+      showPage(0);
+
       document.querySelectorAll('.disabled-tool').forEach(b => b.classList.remove('disabled-tool'));
       statusBadge.textContent = 'Documento listo';
     } catch (err) {
       console.error(err);
-      alert('Error al leer el archivo Word: ' + err.message);
-      statusBadge.textContent = 'Error al abrir Word';
+      alert('Error al abrir el archivo Word: ' + err.message);
+      statusBadge.textContent = 'Error al abrir';
     }
   };
   reader.readAsArrayBuffer(file);
 });
 
 // =========================================================
-// MODO EDICIÓN DIRECTA DEL TEXTO WORD
+// SISTEMA DE NAVEGACIÓN Y SELECTOR DE PÁGINAS
 // =========================================================
-let docHTMLBeforeEdit = '';
+function setupPagination() {
+  const total = docPages.length;
+
+  if (total > 1) {
+    // Mostrar botones de paginación solo si hay más de 1 hoja
+    btnPageSelector.style.display = 'flex';
+    btnPrevPage.style.display = 'flex';
+    btnNextPage.style.display = 'flex';
+  } else {
+    btnPageSelector.style.display = 'none';
+    btnPrevPage.style.display = 'none';
+    btnNextPage.style.display = 'none';
+  }
+
+  // Generar cuadrícula en el modal selector
+  modalTotalPages.textContent = total;
+  pageButtonsGrid.innerHTML = '';
+
+  for (let i = 0; i < total; i++) {
+    const tile = document.createElement('button');
+    tile.className = 'page-tile';
+    tile.dataset.pageIndex = i;
+    tile.innerHTML = `<span>📄</span><span>Hoja ${i + 1}</span>`;
+    tile.addEventListener('click', () => {
+      showPage(i);
+      closeModal();
+    });
+    pageButtonsGrid.appendChild(tile);
+  }
+}
+
+function showPage(pageIndex) {
+  if (pageIndex < 0 || pageIndex >= docPages.length) return;
+  currentPage = pageIndex;
+
+  clearSelection();
+
+  // Ocultar todas las páginas y mostrar únicamente la seleccionada
+  docPages.forEach((sec, idx) => {
+    if (idx === currentPage) {
+      sec.style.display = 'block';
+      sec.contentEditable = isEditingDocActive ? 'true' : 'false';
+    } else {
+      sec.style.display = 'none';
+      sec.contentEditable = 'false';
+    }
+  });
+
+  // Actualizar indicadores
+  pageIndicator.textContent = `Pág. ${currentPage + 1} / ${docPages.length}`;
+  btnPrevPage.disabled = (currentPage === 0);
+  btnNextPage.disabled = (currentPage === docPages.length - 1);
+
+  // Marcar como activa en el modal
+  document.querySelectorAll('.page-tile').forEach((tile, idx) => {
+    tile.classList.toggle('active-page', idx === currentPage);
+  });
+
+  // Centrar la hoja activa
+  const activeSec = docPages[currentPage];
+  centerDocument(activeSec.offsetWidth || 794, activeSec.offsetHeight || 1123);
+  statusBadge.textContent = `Hoja ${currentPage + 1} activa`;
+}
+
+// Flechas anterior y siguiente
+btnPrevPage.addEventListener('click', () => showPage(currentPage - 1));
+btnNextPage.addEventListener('click', () => showPage(currentPage + 1));
+
+// Abrir y cerrar modal selector de páginas
+btnPageSelector.addEventListener('click', () => {
+  pageModalBackdrop.classList.add('active');
+});
+
+function closeModal() {
+  pageModalBackdrop.classList.remove('active');
+}
+closePageModal.addEventListener('click', closeModal);
+pageModalBackdrop.addEventListener('click', (e) => {
+  if (e.target === pageModalBackdrop) closeModal();
+});
+
+// =========================================================
+// MODO EDICIÓN DIRECTA EN LA HOJA
+// =========================================================
+let pageHTMLBeforeEdit = '';
 
 btnToggleDocEdit.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
   isEditingDocActive = !isEditingDocActive;
 
-  docContent.contentEditable = isEditingDocActive ? 'true' : 'false';
-  docContent.classList.toggle('editing-active', isEditingDocActive);
+  const activeSec = docPages[currentPage];
+  if (!activeSec) return;
+
+  activeSec.contentEditable = isEditingDocActive ? 'true' : 'false';
+  activeSec.classList.toggle('editing-active', isEditingDocActive);
   btnToggleDocEdit.classList.toggle('active-state', isEditingDocActive);
 
   if (isEditingDocActive) {
-    docHTMLBeforeEdit = docContent.innerHTML;
-    statusBadge.textContent = '✏️ Escribe directamente en el texto';
-    docContent.focus();
+    pageHTMLBeforeEdit = activeSec.innerHTML;
+    statusBadge.textContent = `✏️ Editando Hoja ${currentPage + 1}`;
+    activeSec.focus();
   } else {
-    if (docContent.innerHTML !== docHTMLBeforeEdit) {
+    if (activeSec.innerHTML !== pageHTMLBeforeEdit) {
       pushHistoryAction({
-        type: 'DOC_TEXT_CHANGE',
-        prevHTML: docHTMLBeforeEdit,
-        newHTML: docContent.innerHTML
+        type: 'DOC_PAGE_EDIT',
+        pageElement: activeSec,
+        pageIndex: currentPage,
+        prevHTML: pageHTMLBeforeEdit,
+        newHTML: activeSec.innerHTML
       });
     }
-    statusBadge.textContent = 'Documento listo';
+    statusBadge.textContent = `Hoja ${currentPage + 1} lista`;
   }
 });
 
 // =========================================================
-// SISTEMA DE ELEMENTOS FLOTANTES CON CRUCETA
+// CUADROS Y ELEMENTOS FLOTANTES CON CRUCETA
 // =========================================================
 function selectFloatingItem(item) {
   if (activeFloatingItem) activeFloatingItem.classList.remove('selected');
@@ -255,12 +379,7 @@ function selectFloatingItem(item) {
   layerBadge.textContent = `Capa #${item.dataset.layerId}`;
   btnQuickDelete.disabled = false;
 
-  if (item.dataset.type === 'text') {
-    btnEditFloating.disabled = false;
-  } else {
-    btnEditFloating.disabled = true;
-  }
-
+  btnEditFloating.disabled = (item.dataset.type !== 'text');
   precisionTools.classList.add('visible');
 }
 
@@ -273,14 +392,12 @@ function clearSelection() {
   precisionTools.classList.remove('visible');
 }
 
-// Deseleccionar al tocar el fondo
 viewport.addEventListener('click', (e) => {
   if (!e.target.closest('.floating-item') && !e.target.closest('#precision-tools') && !e.target.closest('.top-nav')) {
     clearSelection();
   }
 });
 
-// Arrastre fluido de elementos flotantes con el dedo o ratón
 function makeFloatingDraggable(el) {
   let isDragging = false;
   let startX, startY, origLeft, origTop;
@@ -314,8 +431,9 @@ function makeFloatingDraggable(el) {
     let targetLeft = origLeft + dx;
     let targetTop = origTop + dy;
 
-    // Ajuste magnético al centro de la hoja A4
-    const sheetCenter = 794 / 2;
+    // Ajuste magnético al centro de la hoja activa
+    const parentWidth = el.parentElement.offsetWidth || 794;
+    const sheetCenter = parentWidth / 2;
     const elCenter = targetLeft + (el.offsetWidth / 2);
     if (Math.abs(elCenter - sheetCenter) < 10) {
       targetLeft = sheetCenter - (el.offsetWidth / 2);
@@ -334,12 +452,12 @@ function makeFloatingDraggable(el) {
   el.addEventListener('pointerdown', onDown);
 }
 
-// Botón de eliminar capa seleccionada
 btnQuickDelete.addEventListener('click', () => {
   if (!activeFloatingItem) return;
   const removed = activeFloatingItem;
+  const pageIdx = parseInt(removed.dataset.pageIndex, 10);
   removed.remove();
-  pushHistoryAction({ type: 'FLOATING_REMOVE', element: removed });
+  pushHistoryAction({ type: 'FLOATING_REMOVE', element: removed, pageIndex: pageIdx });
   clearSelection();
   statusBadge.textContent = 'Capa eliminada';
 });
@@ -383,7 +501,6 @@ bindDpad('dpad-down', 0, 1);
 bindDpad('dpad-left', -1, 0);
 bindDpad('dpad-right', 1, 0);
 
-// Alternar Grilla
 btnToggleGrid.addEventListener('click', () => {
   const active = gridOverlay.classList.toggle('active');
   btnToggleGrid.classList.toggle('active', active);
@@ -407,10 +524,10 @@ btnSizeInc.addEventListener('click', () => fontSizeInput.value = Math.min(72, pa
 
 btnAddFloatingText.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
-  activeFloatingItem = null; // Modo creación
+  activeFloatingItem = null;
 
   inlineEditorInput.value = '';
-  editorTitle.textContent = `🔤 Nuevo Cuadro Flotante (Capa #${floatingCounter + 1})`;
+  editorTitle.textContent = `🔤 Nuevo Cuadro (Capa #${floatingCounter + 1})`;
   inlineEditorCard.classList.add('visible');
   inlineEditorInput.focus();
 });
@@ -440,7 +557,6 @@ btnApplyFloating.addEventListener('click', () => {
   if (!text.length) return;
 
   if (activeFloatingItem && activeFloatingItem.dataset.type === 'text') {
-    // Actualizar elemento existente
     activeFloatingItem.innerText = text;
     activeFloatingItem.style.fontFamily = fontFamilySelect.value;
     activeFloatingItem.style.fontSize = `${fontSizeInput.value}px`;
@@ -448,14 +564,15 @@ btnApplyFloating.addEventListener('click', () => {
     activeFloatingItem.style.fontWeight = isBoldActive ? 'bold' : 'normal';
     activeFloatingItem.style.fontStyle = isItalicActive ? 'italic' : 'normal';
   } else {
-    // Crear nuevo elemento flotante
+    // Insertar en la página actual activa
     const item = document.createElement('div');
     item.className = 'floating-item';
     item.dataset.type = 'text';
     item.dataset.layerId = ++floatingCounter;
+    item.dataset.pageIndex = currentPage;
     item.innerText = text;
 
-    item.style.left = '250px';
+    item.style.left = '200px';
     item.style.top = '150px';
     item.style.fontFamily = fontFamilySelect.value;
     item.style.fontSize = `${fontSizeInput.value}px`;
@@ -464,18 +581,19 @@ btnApplyFloating.addEventListener('click', () => {
     item.style.fontStyle = isItalicActive ? 'italic' : 'normal';
 
     makeFloatingDraggable(item);
-    floatingLayer.appendChild(item);
+    docPages[currentPage].appendChild(item);
     selectFloatingItem(item);
-    pushHistoryAction({ type: 'FLOATING_ADD', element: item });
+    pushHistoryAction({ type: 'FLOATING_ADD', element: item, pageIndex: currentPage });
   }
 
   inlineEditorCard.classList.remove('visible');
-  statusBadge.textContent = 'Cuadro aplicado. Muévelo con el dedo o la cruceta.';
+  statusBadge.textContent = 'Cuadro añadido';
 });
 
 btnCenterFloating.addEventListener('click', () => {
   if (!activeFloatingItem) return;
-  activeFloatingItem.style.left = `${(794 - activeFloatingItem.offsetWidth) / 2}px`;
+  const parentWidth = activeFloatingItem.parentElement.offsetWidth || 794;
+  activeFloatingItem.style.left = `${(parentWidth - activeFloatingItem.offsetWidth) / 2}px`;
   statusBadge.textContent = 'Centrado';
 });
 
@@ -493,9 +611,10 @@ imgInput.addEventListener('change', (e) => {
     item.className = 'floating-item';
     item.dataset.type = 'image';
     item.dataset.layerId = ++floatingCounter;
+    item.dataset.pageIndex = currentPage;
 
-    item.style.left = '280px';
-    item.style.top = '300px';
+    item.style.left = '220px';
+    item.style.top = '250px';
     item.style.width = '160px';
 
     const img = document.createElement('img');
@@ -503,14 +622,14 @@ imgInput.addEventListener('change', (e) => {
     item.appendChild(img);
 
     makeFloatingDraggable(item);
-    floatingLayer.appendChild(item);
+    docPages[currentPage].appendChild(item);
     selectFloatingItem(item);
-    pushHistoryAction({ type: 'FLOATING_ADD', element: item });
+    pushHistoryAction({ type: 'FLOATING_ADD', element: item, pageIndex: currentPage });
   };
   reader.readAsDataURL(file);
 });
 
-// Botones de interfaz
+// Herramientas generales
 openToolsBtn.addEventListener('click', () => sheetBackdrop.classList.add('active'));
 closeToolsBtn.addEventListener('click', () => sheetBackdrop.classList.remove('active'));
 sheetBackdrop.addEventListener('click', (e) => {
@@ -519,74 +638,51 @@ sheetBackdrop.addEventListener('click', (e) => {
 
 btnResetZoom.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
-  centerDocument();
+  const activeSec = docPages[currentPage];
+  centerDocument(activeSec ? activeSec.offsetWidth : 794, activeSec ? activeSec.offsetHeight : 1123);
 });
 
 // =========================================================
-// CONVERTIR Y DESCARGAR EN PDF
+// CONVERTIR TODAS LAS PÁGINAS A PDF
 // =========================================================
 btnExportPdf.addEventListener('click', () => {
+  if (!docPages || docPages.length === 0) {
+    alert('Primero debes abrir un archivo Word (.docx).');
+    return;
+  }
+
   sheetBackdrop.classList.remove('active');
   clearSelection();
   gridOverlay.classList.remove('active');
+  btnToggleGrid.classList.remove('active');
 
-  statusBadge.textContent = 'Convirtiendo a PDF...';
+  statusBadge.textContent = 'Convirtiendo todas las páginas a PDF...';
 
-  // Configuración de html2pdf para salida A4 idéntica
+  // 1. Mostrar todas las páginas para que html2pdf procese el documento completo
+  docPages.forEach(sec => {
+    sec.style.display = 'block';
+    sec.style.marginBottom = '0px';
+    sec.style.boxShadow = 'none';
+  });
+
+  // Configuración de html2pdf con separación de páginas idéntica a Word
   const opt = {
     margin: [0, 0, 0, 0],
     filename: `${currentFileName}_editado.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'px', format: [794, sheetWrapper.offsetHeight], orientation: 'portrait' }
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'], before: 'section.docx:not(:first-child)' }
   };
 
-  html2pdf().set(opt).from(sheetWrapper).save().then(() => {
+  html2pdf().set(opt).from(docContent).save().then(() => {
     statusBadge.textContent = '¡PDF descargado con éxito!';
+    // Restaurar vista exclusiva de la página actual
+    showPage(currentPage);
   }).catch((err) => {
     console.error(err);
-    alert('Error al generar PDF: ' + err.message);
+    alert('Error al convertir a PDF: ' + err.message);
     statusBadge.textContent = 'Error al convertir';
+    showPage(currentPage);
   });
-});
-
-// =========================================================
-// EXPORTAR DE VUELTA A WORD (.docx / HTML-DOCX)
-// =========================================================
-btnExportDocx.addEventListener('click', () => {
-  sheetBackdrop.classList.remove('active');
-  clearSelection();
-
-  statusBadge.textContent = 'Exportando archivo Word...';
-
-  const content = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>${currentFileName}</title>
-      <style>
-        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
-      </style>
-    </head>
-    <body>
-      ${docContent.innerHTML}
-    </body>
-    </html>
-  `;
-
-  const blob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${currentFileName}_editado.docx`;
-  document.body.appendChild(a);
-  a.click();
-
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 2000);
-
-  statusBadge.textContent = '¡Archivo Word descargado!';
 });
