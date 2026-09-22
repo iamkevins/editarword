@@ -10,40 +10,43 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Recibir los bytes del archivo .docx
+    // 1. Recibir los bytes del archivo Word (.docx)
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
     }
     const buffer = Buffer.concat(chunks);
 
-    // 2. Enviar a motor de conversión oficial (ejemplo Gotenberg / Cloudmersive)
-    // Cloudmersive permite 800 conversiones gratuitas al mes con una API Key gratuita de https://cloudmersive.com/
+    if (!buffer || buffer.length === 0) {
+      return res.status(400).json({ error: 'No se recibió ningún archivo.' });
+    }
+
     const apiKey = process.env.CLOUDMERSIVE_API_KEY || 'f7fdc218-4f8f-42e8-b328-265fa06b4036';
+
+    // 2. Empaquetar como 'inputFile' tal como lo exige Cloudmersive
+    const formData = new FormData();
+    formData.append('inputFile', new Blob([buffer]), 'documento.docx');
 
     const response = await fetch('https://api.cloudmersive.com/convert/docx/to/pdf', {
       method: 'POST',
       headers: {
-        'Apikey': apiKey,
-        'Content-Type': 'application/octet-stream'
+        'Apikey': apiKey
       },
-      body: buffer
+      body: formData
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(500).json({ error: 'Error en la conversión: ' + errText });
+      return res.status(response.status).json({ error: 'Error del conversor: ' + errText });
     }
 
     const pdfArrayBuffer = await response.arrayBuffer();
-    
-    // 3. Devolver el PDF perfecto listo para abrir
+
+    // 3. Devolver el PDF vectorial nativo para el visor
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"');
     return res.send(Buffer.from(pdfArrayBuffer));
   } catch (error) {
     console.error('Error al convertir:', error);
     return res.status(500).json({ error: error.message });
   }
 }
-
