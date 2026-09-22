@@ -3,24 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Word Pro</title>
+  <title>Editor Word Pro - Fidelidad Nativa</title>
 
-  <!-- Carlito: réplica métrica exacta de la tipografía Calibri de Microsoft Word -->
+  <!-- Fuente Carlito: métrica idéntica a Calibri de Microsoft Word -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 
-  <!-- Motores para leer y editar Word nativo -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
-  <!-- Conversor final opcional a PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Librerías de renderizado -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
+  <script>
+    if (!window.PDFLib && !window.pdfLib) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"><\/script>');
+    }
+  </script>
 
-  <link rel="stylesheet" href="./style.css?v=40">
+  <link rel="stylesheet" href="./style.css?v=50">
 </head>
 <body>
 
-  <!-- Barra superior -->
+  <!-- Barra de control superior -->
   <header class="top-nav">
     <div class="history-controls">
       <button id="btn-undo" class="nav-btn" disabled title="Deshacer (Ctrl+Z)">
@@ -53,13 +57,17 @@
     </div>
 
     <div id="sheet-wrapper">
+      <canvas id="pdf-canvas"></canvas>
       <div id="grid-overlay" class="grid-overlay"></div>
-      <!-- Documento Word nativo 100% editable -->
-      <div id="doc-content" class="doc-content"></div>
+      <!-- Capa de interacción directa con el texto -->
+      <div id="text-detect-layer" class="text-detect-layer"></div>
+      <div class="fabric-wrapper">
+        <canvas id="fabric-canvas"></canvas>
+      </div>
     </div>
   </main>
 
-  <!-- Modal selector numérico de hojas -->
+  <!-- Modal selector de páginas -->
   <div id="page-modal-backdrop" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
@@ -80,29 +88,34 @@
   <div class="sheet-backdrop" id="sheet-backdrop">
     <div class="tools-panel">
       <div class="panel-header">
-        <span class="panel-title">Opciones de Word</span>
+        <span class="panel-title">Opciones de Edición</span>
         <button class="panel-close" id="close-tools-btn">✕</button>
       </div>
 
       <div class="tools-grid">
-        <label class="tool-btn highlight" for="doc-input" style="cursor:pointer;">
+        <button class="tool-btn highlight disabled-tool" id="btn-mode-edit-text">
+          <span class="icon">✏️</span>
+          <span>Modo Corregir</span>
+        </button>
+
+        <button class="tool-btn disabled-tool" id="btn-draw">
+          <span class="icon">🖊️</span>
+          <span>Firmar / Lápiz</span>
+        </button>
+
+        <label class="tool-btn" for="doc-input" style="cursor:pointer;">
           <span class="icon">📁</span>
           <span>Abrir Word (.docx)</span>
         </label>
         <input type="file" id="doc-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;">
-
-        <button class="tool-btn disabled-tool" id="btn-toggle-grid">
-          <span class="icon">⊞</span>
-          <span>Grilla Guía</span>
-        </button>
 
         <button class="tool-btn disabled-tool" id="btn-reset-zoom">
           <span class="icon">🎯</span>
           <span>Centrar Hoja</span>
         </button>
 
-        <!-- Conversión a PDF solo al terminar todo el trabajo -->
-        <button class="tool-btn success disabled-tool" id="btn-save-pdf">
+        <!-- Opción final opcional para guardar en PDF -->
+        <button class="tool-btn success disabled-tool" id="btn-save">
           <span class="icon">📄</span>
           <span>Exportar a PDF</span>
         </button>
@@ -110,6 +123,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=40"></script>
+  <script src="./app.js?v=50"></script>
 </body>
 </html>
