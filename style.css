@@ -45,8 +45,8 @@ html, body {
   color: #f8fafc;
   border: 1px solid #334155;
   border-radius: 12px;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -61,19 +61,20 @@ html, body {
 }
 
 .nav-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: not-allowed;
+  border-color: transparent;
 }
 
 .nav-btn .icon {
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1;
 }
 
-/* BOTÓN SELECTOR SIMPLIFICADO: SOLO MUESTRA EL NÚMERO (EJ. 1 / 2) */
+/* BOTÓN SELECTOR SIMPLIFICADO: MUESTRA DIRECTAMENTE EL NÚMERO (1 / 2) */
 .page-num-btn {
   width: auto !important;
-  padding: 0 10px;
+  padding: 0 12px;
   gap: 5px;
   background: #2563eb !important;
   border-color: #3b82f6 !important;
@@ -89,8 +90,8 @@ html, body {
 }
 
 .page-arrow {
-  width: 28px !important;
-  height: 36px !important;
+  width: 30px !important;
+  height: 38px !important;
   font-size: 11px;
 }
 
@@ -98,12 +99,6 @@ html, body {
   background: rgba(37, 99, 235, 0.3);
   border-color: #2563eb;
   color: #60a5fa;
-}
-
-.btn-x-delete:not(:disabled) {
-  background: rgba(220, 38, 38, 0.2);
-  border-color: rgba(220, 38, 38, 0.4);
-  color: #fca5a5;
 }
 
 .status-container {
@@ -159,18 +154,19 @@ html, body {
   display: none;
 }
 
-/* RESPETAR LOS ESTILOS ORIGINALES DE WORD SIN DEFORMARLAS */
+/* CONTENEDOR EXACTO DE DOCX-PREVIEW SIN DEFORMACIONES */
 .docx-wrapper {
   background: transparent !important;
   padding: 0 !important;
 }
 
-/* Las secciones de docx-preview mantienen sus dimensiones exactas de Word */
+/* Cada sección conserva su tamaño original exacto definido en Word */
 section.docx {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
   margin: 0 auto !important;
   background: #ffffff !important;
   position: relative !important;
+  overflow: hidden !important; /* Evita que pequeños desbordamientos creen hojas falsas */
   user-select: text !important;
   -webkit-user-select: text !important;
 }
@@ -180,7 +176,7 @@ section.docx.editing-active {
   outline-offset: -3px;
 }
 
-/* CUADROS FLOTANTES */
+/* ELEMENTOS FLOTANTES */
 .floating-item {
   position: absolute;
   pointer-events: auto;
@@ -204,7 +200,7 @@ section.docx.editing-active {
   pointer-events: none;
 }
 
-/* GRILLA */
+/* GRILLA MILIMÉTRICA */
 .grid-overlay {
   position: absolute;
   top: 0;
@@ -226,7 +222,7 @@ section.docx.editing-active {
   display: block;
 }
 
-/* MODAL DE NÚMEROS DIRECTOS */
+/* MODAL DE SELECTOR DE NÚMEROS DIRECTOS */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -252,7 +248,7 @@ section.docx.editing-active {
   border: 1px solid #334155;
   border-radius: 18px;
   width: 100%;
-  max-width: 320px;
+  max-width: 300px;
   padding: 16px;
   color: #f8fafc;
 }
@@ -299,7 +295,7 @@ section.docx.editing-active {
   border-color: #60a5fa;
 }
 
-/* CRUCETA (D-PAD) */
+/* CRUCETA DE PRECISIÓN */
 .precision-tools {
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
@@ -658,7 +654,6 @@ section.docx.editing-active {
 
 .tool-btn span.icon { font-size: 20px; }
 .tool-btn.highlight { background: #2563eb; }
-.tool-btn.success { background: #059669; }
 .tool-btn.danger { background: #dc2626; }
 .tool-btn.active-state { background: #f59e0b !important; }
 .disabled-tool { opacity: 0.4; pointer-events: none; }
