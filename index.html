@@ -17,18 +17,18 @@
   <!-- 3. html2pdf.js: Exportador a PDF de alta resolución -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <link rel="stylesheet" href="./style.css?v=8">
+  <link rel="stylesheet" href="./style.css?v=9">
 </head>
 <body>
 
   <!-- Barra superior -->
   <header class="top-nav">
     <div class="history-controls">
-      <!-- Deshacer y Rehacer -->
-      <button id="btn-undo" class="nav-btn" disabled title="Deshacer (Ctrl+Z)">
+      <!-- Deshacer y Rehacer funcionales -->
+      <button id="btn-undo" class="nav-btn" title="Deshacer (Ctrl+Z)">
         <span class="icon">↶</span>
       </button>
-      <button id="btn-redo" class="nav-btn" disabled title="Rehacer (Ctrl+Y)">
+      <button id="btn-redo" class="nav-btn" title="Rehacer (Ctrl+Y)">
         <span class="icon">↷</span>
       </button>
 
@@ -70,7 +70,7 @@
         <button id="close-page-modal" class="btn-icon">✕</button>
       </div>
       <div id="page-buttons-grid" class="page-grid">
-        <!-- Botones con números 1, 2, 3... -->
+        <!-- Botones generados dinámicamente con números 1, 2, 3... -->
       </div>
     </div>
   </div>
@@ -192,7 +192,7 @@
           <span>Centrar Vista</span>
         </button>
 
-        <!-- Conversión fiel a PDF -->
+        <!-- Conversión a PDF -->
         <button class="tool-btn danger disabled-tool" id="btn-export-pdf" style="background: #dc2626;">
           <span class="icon">📄</span>
           <span>Convertir a PDF</span>
@@ -201,6 +201,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=8"></script>
+  <script src="./app.js?v=9"></script>
 </body>
 </html>
