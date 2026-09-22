@@ -139,6 +139,7 @@ function undo() {
 
     const pagePatches = pagesData[currentPageNumber].patches;
     pagesData[currentPageNumber].patches = pagePatches.filter(p => p !== action.patchRef);
+    if (action.domElement) action.domElement.style.display = 'block';
   }
 
   redoStack.push(action);
@@ -164,6 +165,7 @@ function redo() {
     fabricCanvas.renderAll();
 
     pagesData[currentPageNumber].patches.push(action.patchRef);
+    if (action.domElement) action.domElement.style.display = 'none';
   }
 
   undoStack.push(action);
@@ -303,7 +305,7 @@ docInput.addEventListener('change', async (e) => {
     statusBadge.textContent = `Word listo (${totalPages} pág.)`;
   } catch (err) {
     console.error(err);
-    alert('Error al abrir el documento: ' + err.message);
+    alert('Error al abrir el archivo Word: ' + err.message);
     statusBadge.textContent = 'Error al cargar';
   }
 });
@@ -431,7 +433,7 @@ pageModalBackdrop.addEventListener('click', (e) => {
 });
 
 // =========================================================
-// DETECCIÓN INTELIGENTE DE TEXTO ORIGINAL
+// DETECCIÓN INTELIGENTE DE TEXTO ORIGINAL CON TOQUE INMEDIATO
 // =========================================================
 async function buildSmartTextLayer(page, viewportObj) {
   textDetectLayer.innerHTML = '';
@@ -507,17 +509,27 @@ async function buildSmartTextLayer(page, viewportObj) {
     el.style.width = `${line.w + 4}px`;
     el.style.height = `${line.h + 2}px`;
 
-    let startX = 0, startY = 0, startTime = 0;
-    el.addEventListener('pointerdown', (e) => {
-      startX = e.clientX;
-      startY = e.clientY;
-      startTime = Date.now();
+    // Activación inmediata por clic
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      openEditorForLine(line, el);
     });
 
-    el.addEventListener('pointerup', (e) => {
-      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
-      const duration = Date.now() - startTime;
-      if (dist < 10 && duration < 400 && !isTwoFinger) {
+    // Activación táctil sin retrasos para pantallas móviles
+    let touchStart = { x: 0, y: 0 };
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchend', (e) => {
+      if (isTwoFinger) return;
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const dist = Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y);
+      if (dist < 15) {
         e.stopPropagation();
         e.preventDefault();
         openEditorForLine(line, el);
@@ -764,6 +776,7 @@ btnApplyText.addEventListener('click', () => {
       type: 'TEXT_EDIT',
       textRender: newTextRender,
       patchRef,
+      domElement,
       eraseData: { imageData: originalImageData, bgColor, box: { x: boxX, y: boxY, w: boxW, h: boxH } }
     });
 
@@ -988,7 +1001,6 @@ imgInput.addEventListener('change', (e) => {
   reader.readAsDataURL(f);
 });
 
-// Eliminar capa seleccionada
 btnDeleteLayer.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
   if (!fabricCanvas) return;
