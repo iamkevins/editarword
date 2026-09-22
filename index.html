@@ -3,19 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Word Pro & Convertidor a PDF</title>
+  <title>Editor Word Pro - Fidelidad y Multipágina</title>
 
   <!-- Catálogo de más de 20 tipografías -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600&family=Dancing+Script:wght@600&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&family=Lato:wght@400;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@500&family=Pacifico&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@400;600;700&family=Raleway:wght@400;700&family=Roboto:wght@400;700&family=Rubik:wght@400;600&display=swap" rel="stylesheet">
 
-  <!-- 1. Mammoth.js: Lector de archivos .docx -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-  <!-- 2. html2pdf.js: Convertidor a PDF en alta resolución -->
+  <!-- 1. JSZip: Necesario para descomprimir el archivo docx -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- 2. docx-preview: Renderizador de alta fidelidad que preserva el formato de Word -->
+  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
+  <!-- 3. html2pdf.js: Convertidor a PDF de alta resolución -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=6">
 </head>
 <body>
 
@@ -34,11 +36,20 @@
       <button id="btn-edit-floating" class="nav-btn btn-edit-nav" disabled title="Modificar texto flotante">
         <span class="icon">✏️</span>
       </button>
+
+      <!-- Paginador interactivo (solo visible si hay 2 o más hojas) -->
+      <button id="btn-prev-page" class="nav-btn page-nav-arrow" style="display: none;" title="Hoja anterior">◀</button>
+      <button id="btn-page-selector" class="nav-btn page-selector-btn" style="display: none;" title="Seleccionar hoja">
+        <span class="icon">📄</span>
+        <span id="page-indicator">Pág. 1 / 1</span>
+        <span class="arrow">▼</span>
+      </button>
+      <button id="btn-next-page" class="nav-btn page-nav-arrow" style="display: none;" title="Hoja siguiente">▶</button>
     </div>
     
     <div class="status-container">
       <span id="layer-badge" class="layer-badge" style="display: none;">Capa --</span>
-      <span id="status-badge" class="status-badge">Sin documento Word</span>
+      <span id="status-badge" class="status-badge">Sin documento</span>
     </div>
   </header>
 
@@ -50,18 +61,27 @@
       <div style="font-size: 14px; color: #94a3b8; margin-top: 6px;">Toca en <b>"Herramientas"</b> para abrir un archivo <b>.docx</b></div>
     </div>
 
-    <!-- Hoja A4 del Documento Word -->
+    <!-- Contenedor del documento -->
     <div id="sheet-wrapper">
-      <!-- Capa de grilla milimétrica -->
       <div id="grid-overlay" class="grid-overlay"></div>
-      
-      <!-- Contenedor del texto editable del Word -->
-      <div id="doc-content" class="doc-content" contenteditable="false" spellcheck="false"></div>
-
-      <!-- Capa de elementos flotantes (firmas, cuadros, sellos) -->
-      <div id="floating-layer" class="floating-layer"></div>
+      <!-- Aquí se renderizan las hojas exactas con docx-preview -->
+      <div id="doc-content" class="doc-content"></div>
     </div>
   </main>
+
+  <!-- SELECTOR DE PÁGINAS (MODAL) -->
+  <div id="page-modal-backdrop" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">📑 Ir a la Hoja</span>
+        <button id="close-page-modal" class="btn-icon">✕</button>
+      </div>
+      <p class="modal-desc">El documento tiene <b id="modal-total-pages">0</b> páginas. Selecciona a cuál deseas ir para editarla:</p>
+      <div id="page-buttons-grid" class="page-grid">
+        <!-- Los botones de páginas se generan dinámicamente -->
+      </div>
+    </div>
+  </div>
 
   <!-- CONTROLES DE PRECISIÓN FLOTANTES: CRUCETA Y GRILLA -->
   <div id="precision-tools" class="precision-tools">
@@ -79,7 +99,7 @@
     </div>
   </div>
 
-  <!-- Modal para crear / editar textos flotantes con tipografía -->
+  <!-- Modal para crear / editar textos flotantes -->
   <div id="inline-editor-card" class="inline-editor-card">
     <div class="editor-header">
       <span id="editor-title">🔤 Cuadro de Texto Flotante</span>
@@ -156,54 +176,42 @@
       </div>
 
       <div class="tools-grid">
-        <!-- 1. Alternar modo edición directa -->
         <button class="tool-btn highlight disabled-tool" id="btn-toggle-doc-edit">
           <span class="icon">✏️</span>
           <span>Editar Documento</span>
         </button>
 
-        <!-- 2. Añadir texto flotante con cruceta -->
         <button class="tool-btn disabled-tool" id="btn-add-floating-text">
           <span class="icon">🔤</span>
           <span>Cuadro de Texto</span>
         </button>
 
-        <!-- 3. Insertar firma / imagen PNG -->
         <label class="tool-btn disabled-tool" for="img-input" style="cursor:pointer;">
           <span class="icon">🖼️</span>
           <span>Firma o Imagen</span>
         </label>
         <input type="file" id="img-input" accept="image/png, image/jpeg" style="display:none;">
 
-        <!-- 4. Abrir archivo Word -->
         <label class="tool-btn" for="docx-input" style="cursor:pointer;">
           <span class="icon">📁</span>
           <span>Abrir .docx</span>
         </label>
         <input type="file" id="docx-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;">
 
-        <!-- 5. Centrar visualmente -->
         <button class="tool-btn disabled-tool" id="btn-reset-zoom">
           <span class="icon">🎯</span>
           <span>Centrar Vista</span>
         </button>
 
-        <!-- 6. CONVERTIR Y DESCARGAR A PDF -->
+        <!-- CONVERSIÓN COMPLETA A PDF -->
         <button class="tool-btn danger disabled-tool" id="btn-export-pdf" style="background: #dc2626;">
           <span class="icon">📄</span>
           <span>Convertir a PDF</span>
-        </button>
-
-        <!-- 7. DESCARGAR COMO WORD -->
-        <button class="tool-btn success disabled-tool" id="btn-export-docx">
-          <span class="icon">💾</span>
-          <span>Descargar Word</span>
         </button>
       </div>
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=6"></script>
 </body>
 </html>
-
