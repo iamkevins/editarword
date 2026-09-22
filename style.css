@@ -167,36 +167,34 @@ html, body {
   display: block;
 }
 
-/* CAPAS DE TEXTO */
+/* CAPA DE DETECCIÓN: EL CONTENEDOR NUNCA BLOQUEA NADA */
 .text-detect-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
-  z-index: 15;
+  pointer-events: none !important;
+  z-index: 30; /* Por encima del canvas de Fabric */
 }
 
-.text-detect-layer.interactive {
-  pointer-events: auto !important;
-}
-
+/* SOLO LAS CAJAS AZULES CAPTURAN TOQUES CUANDO ESTÁ ACTIVO EL MODO EDITAR */
 .detected-line {
   position: absolute;
   border-radius: 3px;
+  pointer-events: none;
+}
+
+.text-detect-layer.interactive .detected-line {
+  pointer-events: auto !important;
+  border: 1.5px dashed #2563eb;
+  background: rgba(37, 99, 235, 0.15);
   cursor: pointer;
   touch-action: manipulation;
 }
 
-.text-detect-layer.interactive .detected-line {
-  border: 1.5px dashed #2563eb;
-  background: rgba(37, 99, 235, 0.12);
-}
-
-.text-detect-layer.interactive .detected-line:hover,
 .text-detect-layer.interactive .detected-line:active {
-  background: rgba(37, 99, 235, 0.32);
+  background: rgba(37, 99, 235, 0.38);
   border-color: #1d4ed8;
 }
 
