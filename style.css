@@ -34,6 +34,7 @@ html, body {
 
 .history-controls {
   display: flex;
+  align-items: center;
   gap: 6px;
   pointer-events: auto;
 }
@@ -69,6 +70,31 @@ html, body {
   line-height: 1;
 }
 
+/* BOTÓN SELECTOR DE PÁGINAS Y FLECHAS */
+.page-selector-btn {
+  width: auto !important;
+  padding: 0 12px;
+  gap: 6px;
+  background: #2563eb !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}
+
+.page-selector-btn .arrow {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.page-nav-arrow {
+  width: 30px !important;
+  height: 36px !important;
+  font-size: 12px;
+  background: rgba(30, 41, 59, 0.95);
+}
+
 .btn-edit-nav:not(:disabled) {
   background: rgba(37, 99, 235, 0.3);
   border-color: #2563eb;
@@ -93,7 +119,7 @@ html, body {
   align-items: center;
   gap: 6px;
   pointer-events: auto;
-  max-width: 55%;
+  max-width: 45%;
 }
 
 .layer-badge {
@@ -133,69 +159,44 @@ html, body {
   cursor: grab;
 }
 
-/* HOJA DE ESTILO A4 (SIMULADOR DE DOCUMENTO WORD) */
 #sheet-wrapper {
   position: absolute;
   top: 0;
   left: 0;
-  width: 794px; /* Ancho estándar A4 a 96 DPI */
-  min-height: 1123px; /* Alto estándar A4 */
-  background: #ffffff;
-  color: #0f172a;
   transform-origin: 0 0;
   will-change: transform;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
   display: none;
   overflow: visible;
 }
 
-/* CONTENIDO DEL WORD */
-.doc-content {
-  padding: 60px 55px; /* Márgenes estándar de Word */
-  font-family: 'Calibri', Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
-  min-height: 1123px;
-  outline: none;
-  user-select: text;
-  -webkit-user-select: text;
+/* AJUSTES PARA DOCX-PREVIEW (FIDELIDAD PURA AL FORMATO WORD) */
+.docx-wrapper {
+  background: transparent !important;
+  padding: 0 !important;
 }
 
-.doc-content.editing-active {
-  background-color: #fafafa;
-  box-shadow: inset 0 0 0 2px #2563eb;
-  cursor: text;
+/* Cada sección de Word se comporta como una hoja independiente */
+section.docx {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75) !important;
+  margin: 0 auto !important;
+  background: #ffffff !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  overflow: visible !important;
 }
 
-.doc-content h1, .doc-content h2, .doc-content h3 {
-  color: #1e3a8a;
-  margin-top: 20px;
-  margin-bottom: 10px;
+/* Cuando se activa la edición en la hoja */
+section.docx.editing-active {
+  outline: 2.5px dashed #2563eb !important;
+  outline-offset: -2px;
 }
 
-.doc-content table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 15px 0;
+section.docx.editing-active * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
-.doc-content table, .doc-content th, .doc-content td {
-  border: 1px solid #cbd5e1;
-  padding: 8px;
-}
-
-/* CAPA FLOTANTE */
-.floating-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* ELEMENTOS FLOTANTES (CUADROS / FIRMAS) */
+/* ELEMENTOS FLOTANTES (FIRMADOS O CUADROS) DENTRO DE CADA PÁGINA */
 .floating-item {
   position: absolute;
   pointer-events: auto;
@@ -204,6 +205,7 @@ html, body {
   padding: 4px 6px;
   border-radius: 4px;
   transition: border-color 0.15s;
+  z-index: 100;
 }
 
 .floating-item.selected {
@@ -218,7 +220,7 @@ html, body {
   pointer-events: none;
 }
 
-/* GRILLA */
+/* GRILLA MILIMÉTRICA */
 .grid-overlay {
   position: absolute;
   top: 0;
@@ -227,7 +229,7 @@ html, body {
   height: 100%;
   pointer-events: none;
   display: none;
-  z-index: 4;
+  z-index: 50;
   background-size: 20px 20px, 100px 100px;
   background-image:
     linear-gradient(to right, rgba(59, 130, 246, 0.16) 1px, transparent 1px),
@@ -240,7 +242,93 @@ html, body {
   display: block;
 }
 
-/* CRUCETA (D-PAD) Y BOTÓN DE GRILLA */
+/* MODAL DE SELECTOR DE HOJAS */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 100005;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  padding: 20px;
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 380px;
+  padding: 18px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+  color: #f8fafc;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.modal-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.page-tile {
+  background: #0f172a;
+  border: 1.5px solid #334155;
+  color: #f8fafc;
+  border-radius: 10px;
+  padding: 12px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.page-tile:active {
+  transform: scale(0.94);
+}
+
+.page-tile.active-page {
+  background: #2563eb;
+  border-color: #60a5fa;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+}
+
+/* CRUCETA (D-PAD) */
 .precision-tools {
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
@@ -608,4 +696,3 @@ html, body {
 .tool-btn.danger { background: #dc2626; }
 .tool-btn.active-state { background: #f59e0b !important; }
 .disabled-tool { opacity: 0.4; pointer-events: none; }
-
