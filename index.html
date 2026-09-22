@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Word Pro - Fidelidad Nativa</title>
+  <title>Editor Word Pro</title>
 
-  <!-- Fuente Carlito: métrica idéntica a Calibri de Microsoft Word -->
+  <!-- Fuente métrica exacta de Calibri de Microsoft Word -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
     }
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=50">
+  <link rel="stylesheet" href="./style.css?v=60">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
     </div>
   </header>
 
-  <!-- Espacio de trabajo infinito -->
+  <!-- Espacio de trabajo del documento Word -->
   <main id="viewport">
     <div id="empty-state">
       <div style="font-size: 48px; margin-bottom: 8px;">📝</div>
@@ -59,7 +59,7 @@
     <div id="sheet-wrapper">
       <canvas id="pdf-canvas"></canvas>
       <div id="grid-overlay" class="grid-overlay"></div>
-      <!-- Capa de interacción directa con el texto -->
+      <!-- Capa de texto interactiva sobre el documento -->
       <div id="text-detect-layer" class="text-detect-layer"></div>
       <div class="fabric-wrapper">
         <canvas id="fabric-canvas"></canvas>
@@ -67,7 +67,7 @@
     </div>
   </main>
 
-  <!-- Modal selector de páginas -->
+  <!-- Modal selector de hojas -->
   <div id="page-modal-backdrop" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
@@ -88,14 +88,14 @@
   <div class="sheet-backdrop" id="sheet-backdrop">
     <div class="tools-panel">
       <div class="panel-header">
-        <span class="panel-title">Opciones de Edición</span>
+        <span class="panel-title">Opciones de Word</span>
         <button class="panel-close" id="close-tools-btn">✕</button>
       </div>
 
       <div class="tools-grid">
         <button class="tool-btn highlight disabled-tool" id="btn-mode-edit-text">
           <span class="icon">✏️</span>
-          <span>Modo Corregir</span>
+          <span>Modo Editar</span>
         </button>
 
         <button class="tool-btn disabled-tool" id="btn-draw">
@@ -114,15 +114,14 @@
           <span>Centrar Hoja</span>
         </button>
 
-        <!-- Opción final opcional para guardar en PDF -->
         <button class="tool-btn success disabled-tool" id="btn-save">
-          <span class="icon">📄</span>
-          <span>Exportar a PDF</span>
+          <span class="icon">💾</span>
+          <span>Guardar / Exportar</span>
         </button>
       </div>
     </div>
   </div>
 
-  <script src="./app.js?v=50"></script>
+  <script src="./app.js?v=60"></script>
 </body>
 </html>
