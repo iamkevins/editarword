@@ -71,7 +71,7 @@ html, body {
   line-height: 1;
 }
 
-/* BOTÓN SELECTOR SIMPLIFICADO: MUESTRA DIRECTAMENTE EL NÚMERO (1 / 2) */
+/* SELECTOR NUMÉRICO DIRECTO (EJ. 1 / 2) */
 .page-num-btn {
   width: auto !important;
   padding: 0 12px;
@@ -93,12 +93,6 @@ html, body {
   width: 30px !important;
   height: 38px !important;
   font-size: 11px;
-}
-
-.btn-edit-nav:not(:disabled) {
-  background: rgba(37, 99, 235, 0.3);
-  border-color: #2563eb;
-  color: #60a5fa;
 }
 
 .status-container {
@@ -154,19 +148,19 @@ html, body {
   display: none;
 }
 
-/* CONTENEDOR EXACTO DE DOCX-PREVIEW SIN DEFORMACIONES */
+/* CONTENEDOR DE WORD SIN DISTORSIÓN */
 .docx-wrapper {
   background: transparent !important;
   padding: 0 !important;
 }
 
-/* Cada sección conserva su tamaño original exacto definido en Word */
+/* Cada hoja conserva sus medidas exactas de Word */
 section.docx {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
   margin: 0 auto !important;
   background: #ffffff !important;
   position: relative !important;
-  overflow: hidden !important; /* Evita que pequeños desbordamientos creen hojas falsas */
+  overflow: hidden !important;
   user-select: text !important;
   -webkit-user-select: text !important;
 }
@@ -176,7 +170,7 @@ section.docx.editing-active {
   outline-offset: -3px;
 }
 
-/* ELEMENTOS FLOTANTES */
+/* CUADROS FLOTANTES */
 .floating-item {
   position: absolute;
   pointer-events: auto;
@@ -222,7 +216,7 @@ section.docx.editing-active {
   display: block;
 }
 
-/* MODAL DE SELECTOR DE NÚMEROS DIRECTOS */
+/* MODAL DE SELECCIÓN DE HOJAS */
 .modal-backdrop {
   position: fixed;
   inset: 0;
