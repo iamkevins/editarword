@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Editor Documental Pro (Word & PDF)</title>
+  <title>Editor Word Pro - Fidelidad Real</title>
 
   <!-- Fuentes tipográficas -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,11 +20,11 @@
     }
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=10">
+  <link rel="stylesheet" href="./style.css?v=11">
 </head>
 <body>
 
-  <!-- Barra de navegación superior -->
+  <!-- Barra superior -->
   <header class="top-nav">
     <div class="history-controls">
       <button id="btn-undo" class="nav-btn" disabled title="Deshacer (Ctrl+Z)">
@@ -37,7 +37,7 @@
         <span class="icon">✏️</span>
       </button>
 
-      <!-- Paginador numérico -->
+      <!-- Paginador numérico directo (ej: 1 / 2) -->
       <button id="btn-prev-page" class="nav-btn page-arrow" style="display: none;" title="Anterior">◀</button>
       <button id="btn-page-selector" class="nav-btn page-num-btn" style="display: none;" title="Cambiar página">
         <span id="page-indicator">1 / 1</span>
@@ -55,9 +55,9 @@
   <!-- Espacio de trabajo infinito -->
   <main id="viewport">
     <div id="empty-state">
-      <div style="font-size: 48px; margin-bottom: 8px;">📄</div>
-      <div style="font-size: 18px; font-weight: 700; color: #f8fafc;">Ningún archivo abierto</div>
-      <div style="font-size: 14px; color: #94a3b8; margin-top: 6px;">Abre un archivo <b>.docx</b> o <b>.pdf</b> en "Herramientas"</div>
+      <div style="font-size: 48px; margin-bottom: 8px;">📝</div>
+      <div style="font-size: 18px; font-weight: 700; color: #f8fafc;">Ningún archivo Word abierto</div>
+      <div style="font-size: 14px; color: #94a3b8; margin-top: 6px;">Toca en <b>"Herramientas"</b> para abrir tu archivo <b>.docx</b></div>
     </div>
 
     <div id="sheet-wrapper">
@@ -197,26 +197,32 @@
         </label>
         <input type="file" id="img-input" accept="image/png, image/jpeg" style="display:none;">
 
-        <!-- Acepta tanto Word (.docx) como PDF -->
+        <!-- Solo acepta archivos Word (.docx) -->
         <label class="tool-btn" for="doc-input" style="cursor:pointer;">
           <span class="icon">📁</span>
-          <span>Abrir Word o PDF</span>
+          <span>Abrir Word (.docx)</span>
         </label>
-        <input type="file" id="doc-input" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;">
+        <input type="file" id="doc-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;">
+
+        <button class="tool-btn disabled-tool" id="btn-delete-layer">
+          <span class="icon">🗑️</span>
+          <span>Eliminar Capa</span>
+        </button>
 
         <button class="tool-btn disabled-tool" id="btn-reset-zoom">
           <span class="icon">🎯</span>
           <span>Centrar Vista</span>
         </button>
 
+        <!-- Exportar el documento final a PDF -->
         <button class="tool-btn success disabled-tool" id="btn-save">
           <span class="icon">💾</span>
-          <span>Descargar PDF</span>
+          <span>Exportar a PDF</span>
         </button>
       </div>
     </div>
   </div>
 
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=11"></script>
 </body>
 </html>
