@@ -663,6 +663,5 @@ html, body {
 .tool-btn span.icon { font-size: 20px; }
 .tool-btn.highlight { background: #2563eb; }
 .tool-btn.success { background: #059669; }
-.tool-btn.danger { background: #dc2626; }
 .tool-btn.active-state { background: #f59e0b !important; }
 .disabled-tool { opacity: 0.4; pointer-events: none; }
