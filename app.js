@@ -24,7 +24,6 @@ const gridOverlay = document.getElementById('grid-overlay');
 
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
-const btnEditSelected = document.getElementById('btn-edit-selected');
 const statusBadge = document.getElementById('status-badge');
 const layerBadge = document.getElementById('layer-badge');
 
@@ -37,35 +36,17 @@ const pageModalBackdrop = document.getElementById('page-modal-backdrop');
 const closePageModal = document.getElementById('close-page-modal');
 const pageButtonsGrid = document.getElementById('page-buttons-grid');
 
-// Herramientas
+// Herramientas flotantes
 const precisionTools = document.getElementById('precision-tools');
 const btnToggleGrid = document.getElementById('btn-toggle-grid');
 const openToolsBtn = document.getElementById('open-tools-btn');
 const closeToolsBtn = document.getElementById('close-tools-btn');
 const sheetBackdrop = document.getElementById('sheet-backdrop');
 
-// Modal editor
-const inlineEditorCard = document.getElementById('inline-editor-card');
-const inlineEditorInput = document.getElementById('inline-editor-input');
-const editorTitle = document.getElementById('editor-title');
-const closeInlineEditor = document.getElementById('close-inline-editor');
-const btnApplyText = document.getElementById('btn-apply-text');
-const btnCenterText = document.getElementById('btn-center-text');
-
-// Tipografías
-const fontFamilySelect = document.getElementById('font-family-select');
-const btnToggleBold = document.getElementById('btn-toggle-bold');
-const btnToggleItalic = document.getElementById('btn-toggle-italic');
-const fontSizeInput = document.getElementById('font-size-input');
-const btnSizeDec = document.getElementById('btn-size-dec');
-const btnSizeInc = document.getElementById('btn-size-inc');
-const fontColorPicker = document.getElementById('font-color-picker');
-
-// Herramientas menú
+// Menú
 const docInput = document.getElementById('doc-input');
 const imgInput = document.getElementById('img-input');
 const btnModeEditText = document.getElementById('btn-mode-edit-text');
-const btnAddText = document.getElementById('btn-add-text');
 const btnWhiteout = document.getElementById('btn-whiteout');
 const btnDraw = document.getElementById('btn-draw');
 const btnDeleteLayer = document.getElementById('btn-delete-layer');
@@ -73,9 +54,7 @@ const btnResetZoom = document.getElementById('btn-reset-zoom');
 const btnSave = document.getElementById('btn-save');
 
 let isEditModeActive = false;
-let currentTargetObject = null;
-let isBoldActive = false;
-let isItalicActive = false;
+let activeInlineInput = null;
 let layerSequence = 0;
 
 // =========================================================
@@ -175,17 +154,6 @@ function redo() {
 
 btnUndo.addEventListener('click', undo);
 btnRedo.addEventListener('click', redo);
-
-window.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-    e.preventDefault();
-    e.shiftKey ? redo() : undo();
-  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-    e.preventDefault();
-    redo();
-  }
-});
 
 // =========================================================
 // NAVEGACIÓN Y ZOOM MULTITÁCTIL CON 2 DEDOS
@@ -314,6 +282,8 @@ docInput.addEventListener('change', async (e) => {
 // RENDERIZADO DE PÁGINAS Y FABRIC
 // =========================================================
 async function loadPage(pageNum) {
+  if (activeInlineInput) commitDirectEdit();
+
   if (fabricCanvas && pagesData[currentPageNumber]) {
     pagesData[currentPageNumber].fabricObjectsJson = fabricCanvas.toJSON();
   }
@@ -362,10 +332,6 @@ async function loadPage(pageNum) {
   fabricCanvas.on('selection:created', onSelectionChanged);
   fabricCanvas.on('selection:updated', onSelectionChanged);
   fabricCanvas.on('selection:cleared', clearSelectionUI);
-
-  fabricCanvas.on('mouse:dblclick', (opt) => {
-    if (opt.target && opt.target.type === 'text') openEditorForTarget(opt.target);
-  });
 
   fabricCanvas.on('path:created', (opt) => {
     opt.path.layerNum = ++layerSequence;
@@ -433,7 +399,7 @@ pageModalBackdrop.addEventListener('click', (e) => {
 });
 
 // =========================================================
-// DETECCIÓN INTELIGENTE DE TEXTO ORIGINAL CON TOQUE INMEDIATO
+// DETECCIÓN INTELIGENTE Y EDICIÓN DIRECTA EN SITIO
 // =========================================================
 async function buildSmartTextLayer(page, viewportObj) {
   textDetectLayer.innerHTML = '';
@@ -485,7 +451,7 @@ async function buildSmartTextLayer(page, viewportObj) {
 
     const sameLine = Math.abs(it.y - cur.y) < (cur.h * 0.5);
     const gap = it.x - (cur.x + cur.w);
-    const adjacent = gap > -4 && gap < (cur.h * 1.6);
+    const adjacent = gap > -4 && gap < (cur.h * 2.5); // Agrupación natural de oraciones
 
     if (sameLine && adjacent) {
       const space = gap > (cur.h * 0.15) && !cur.fullStr.endsWith(' ') && !it.str.startsWith(' ');
@@ -509,14 +475,15 @@ async function buildSmartTextLayer(page, viewportObj) {
     el.style.width = `${line.w + 4}px`;
     el.style.height = `${line.h + 2}px`;
 
-    // Activación inmediata por clic
-    el.addEventListener('click', (e) => {
+    // Toque directo para escribir en ese punto exacto
+    const startDirectEdit = (e) => {
       e.stopPropagation();
       e.preventDefault();
-      openEditorForLine(line, el);
-    });
+      openDirectInlineEditor(line, el);
+    };
 
-    // Activación táctil sin retrasos para pantallas móviles
+    el.addEventListener('click', startDirectEdit);
+
     let touchStart = { x: 0, y: 0 };
     el.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
@@ -528,16 +495,130 @@ async function buildSmartTextLayer(page, viewportObj) {
       if (isTwoFinger) return;
       const touch = e.changedTouches[0];
       if (!touch) return;
-      const dist = Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y);
-      if (dist < 15) {
-        e.stopPropagation();
-        e.preventDefault();
-        openEditorForLine(line, el);
+      if (Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y) < 15) {
+        startDirectEdit(e);
       }
     });
 
     textDetectLayer.appendChild(el);
   });
+}
+
+// =========================================================
+// ESCRITURA DIRECTA EN EL DOCUMENTO (SIN VENTANAS APARTE)
+// =========================================================
+function openDirectInlineEditor(lineData, domElement) {
+  if (activeInlineInput) commitDirectEdit();
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'inline-direct-input';
+  input.value = lineData.fullStr;
+
+  // Mismas dimensiones, coordenadas y tipografía exactas
+  input.style.left = `${lineData.x - 4}px`;
+  input.style.top = `${lineData.y - 2}px`;
+  input.style.width = `${Math.max(lineData.w + 40, 160)}px`;
+  input.style.height = `${lineData.h + 4}px`;
+  input.style.fontSize = `${lineData.h * 0.88}px`;
+  input.style.fontFamily = lineData.family;
+  input.style.fontWeight = lineData.bold ? 'bold' : 'normal';
+  input.style.fontStyle = lineData.italic ? 'italic' : 'normal';
+  input.style.color = '#000000';
+
+  activeInlineInput = { input, lineData, domElement };
+  textDetectLayer.appendChild(input);
+
+  domElement.style.opacity = '0';
+  input.focus();
+  input.select();
+
+  // Guardar al dar Enter o tocar fuera
+  input.addEventListener('blur', commitDirectEdit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      input.blur();
+    }
+  });
+
+  statusBadge.textContent = '✏️ Escribiendo en el texto...';
+}
+
+function commitDirectEdit() {
+  if (!activeInlineInput) return;
+  const { input, lineData, domElement } = activeInlineInput;
+  const newStr = input.value.trim();
+
+  input.remove();
+  activeInlineInput = null;
+
+  if (newStr === lineData.fullStr || newStr.length === 0) {
+    domElement.style.opacity = '1';
+    statusBadge.textContent = 'Sin cambios';
+    return;
+  }
+
+  // Tapar el texto viejo en el lienzo
+  const ctx = pdfCanvas.getContext('2d');
+  const padTop = lineData.h * 0.28;
+  const padBottom = lineData.h * 0.38;
+  const padX = 4;
+
+  const boxX = Math.max(0, Math.floor(lineData.x - padX));
+  const boxY = Math.max(0, Math.floor(lineData.y - padTop));
+  const boxW = Math.ceil(lineData.w + (padX * 2));
+  const boxH = Math.ceil(lineData.h + padTop + padBottom);
+
+  const originalImageData = ctx.getImageData(boxX, boxY, boxW, boxH);
+  const bgColor = getBackgroundColorAround(lineData.x, lineData.y);
+
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+
+  domElement.style.display = 'none';
+
+  // Dibujar el texto editado en Fabric en la misma posición exacta
+  const newTextRender = new fabric.Text(newStr, {
+    left: lineData.x,
+    top: lineData.y,
+    fontSize: Math.round(lineData.origPdfH) * RENDER_SCALE,
+    fontFamily: lineData.family,
+    fontWeight: lineData.bold ? 'bold' : 'normal',
+    fontStyle: lineData.italic ? 'italic' : 'normal',
+    fill: '#000000',
+    selectable: true,
+    hasControls: true,
+    hasBorders: true
+  });
+
+  newTextRender.layerNum = lineData.id;
+  fabricCanvas.add(newTextRender);
+  fabricCanvas.setActiveObject(newTextRender);
+  fabricCanvas.renderAll();
+
+  const patchRef = {
+    originalLine: lineData,
+    newText: newStr,
+    fontFamily: lineData.family,
+    bold: lineData.bold,
+    italic: lineData.italic,
+    fontSize: Math.round(lineData.origPdfH),
+    color: '#000000',
+    textRender: newTextRender
+  };
+
+  pagesData[currentPageNumber].patches.push(patchRef);
+
+  pushHistoryAction({
+    type: 'TEXT_EDIT',
+    textRender: newTextRender,
+    patchRef,
+    domElement,
+    eraseData: { imageData: originalImageData, bgColor, box: { x: boxX, y: boxY, w: boxW, h: boxH } }
+  });
+
+  statusBadge.textContent = 'Texto modificado';
+  showPrecisionTools();
 }
 
 function getBackgroundColorAround(x, y) {
@@ -551,7 +632,7 @@ function getBackgroundColorAround(x, y) {
 }
 
 // =========================================================
-// MODO EDICIÓN DIRECTA
+// MODO EDICIÓN
 // =========================================================
 btnModeEditText.addEventListener('click', () => {
   sheetBackdrop.classList.remove('active');
@@ -561,228 +642,10 @@ btnModeEditText.addEventListener('click', () => {
   btnModeEditText.classList.toggle('active-state', isEditModeActive);
 
   if (isEditModeActive) {
-    statusBadge.textContent = '📝 Toca cualquier texto azul para editar';
+    statusBadge.textContent = '✏️ Toca cualquier texto para escribir';
   } else {
+    if (activeInlineInput) commitDirectEdit();
     statusBadge.textContent = 'Modo normal';
-  }
-});
-
-function openEditorForLine(lineData, domElement) {
-  currentTargetObject = { isOriginalLine: true, lineData, domElement };
-  hidePrecisionTools();
-
-  inlineEditorInput.value = lineData.fullStr;
-  editorTitle.textContent = `✏️ Modificar Frase (Capa #${lineData.id})`;
-  fontFamilySelect.value = lineData.family;
-  isBoldActive = lineData.bold;
-  isItalicActive = lineData.italic;
-  fontSizeInput.value = Math.round(lineData.origPdfH);
-  fontColorPicker.value = '#000000';
-
-  btnToggleBold.classList.toggle('active', isBoldActive);
-  btnToggleItalic.classList.toggle('active', isItalicActive);
-
-  layerBadge.style.display = 'inline-block';
-  layerBadge.textContent = `Capa #${lineData.id}`;
-
-  inlineEditorCard.classList.add('visible');
-  inlineEditorInput.focus();
-}
-
-function openEditorForTarget(target) {
-  currentTargetObject = { isFabricObject: true, target };
-  hidePrecisionTools();
-
-  inlineEditorInput.value = target.text;
-  editorTitle.textContent = `✏️ Modificar Texto (Capa #${target.layerNum || '--'})`;
-  fontFamilySelect.value = target.fontFamily || 'Arial';
-  isBoldActive = target.fontWeight === 'bold';
-  isItalicActive = target.fontStyle === 'italic';
-  fontSizeInput.value = Math.round(target.fontSize / RENDER_SCALE);
-  fontColorPicker.value = target.fill || '#000000';
-
-  btnToggleBold.classList.toggle('active', isBoldActive);
-  btnToggleItalic.classList.toggle('active', isItalicActive);
-
-  layerBadge.style.display = 'inline-block';
-  layerBadge.textContent = `Capa #${target.layerNum || '--'}`;
-
-  inlineEditorCard.classList.add('visible');
-  inlineEditorInput.focus();
-}
-
-closeInlineEditor.addEventListener('click', () => {
-  inlineEditorCard.classList.remove('visible');
-  if (fabricCanvas && fabricCanvas.getActiveObject()) showPrecisionTools();
-});
-
-btnCenterText.addEventListener('click', () => {
-  if (!fabricCanvas) return;
-  const active = fabricCanvas.getActiveObject();
-  if (active) {
-    active.viewportCenterH();
-    active.setCoords();
-    fabricCanvas.renderAll();
-    statusBadge.textContent = 'Texto centrado';
-  }
-});
-
-// =========================================================
-// AÑADIR NUEVO TEXTO
-// =========================================================
-btnAddText.addEventListener('click', () => {
-  sheetBackdrop.classList.remove('active');
-  hidePrecisionTools();
-
-  currentTargetObject = { isNewText: true };
-  inlineEditorInput.value = '';
-  editorTitle.textContent = `🔤 Añadir Nuevo Texto (Capa #${layerSequence + 1})`;
-  fontFamilySelect.value = 'Arial';
-  isBoldActive = false;
-  isItalicActive = false;
-  btnToggleBold.classList.remove('active');
-  btnToggleItalic.classList.remove('active');
-  fontSizeInput.value = '16';
-  fontColorPicker.value = '#000000';
-
-  layerBadge.style.display = 'inline-block';
-  layerBadge.textContent = `Capa #${layerSequence + 1}`;
-
-  inlineEditorCard.classList.add('visible');
-  inlineEditorInput.focus();
-});
-
-// =========================================================
-// APLICAR CAMBIOS
-// =========================================================
-btnApplyText.addEventListener('click', () => {
-  if (!currentTargetObject) return;
-  const newStr = inlineEditorInput.value;
-  if (!newStr.trim().length) {
-    alert('Por favor escribe un texto.');
-    return;
-  }
-
-  const chosenFamily = fontFamilySelect.value;
-  const chosenBold = isBoldActive;
-  const chosenItalic = isItalicActive;
-  const chosenPtSize = parseInt(fontSizeInput.value, 10) || 16;
-  const chosenColor = fontColorPicker.value;
-
-  // CASO 1: TEXTO NUEVO
-  if (currentTargetObject.isNewText) {
-    const spawnX = Math.max(20, ((-panX + (window.innerWidth / 2)) / zoom) - 70);
-    const spawnY = Math.max(20, ((-panY + (window.innerHeight / 2)) / zoom) - 15);
-
-    const newTextObj = new fabric.Text(newStr, {
-      left: spawnX,
-      top: spawnY,
-      fontSize: chosenPtSize * RENDER_SCALE,
-      fontFamily: chosenFamily,
-      fontWeight: chosenBold ? 'bold' : 'normal',
-      fontStyle: chosenItalic ? 'italic' : 'normal',
-      fill: chosenColor,
-      selectable: true,
-      hasControls: true,
-      hasBorders: true
-    });
-
-    newTextObj.layerNum = ++layerSequence;
-    fabricCanvas.add(newTextObj);
-    fabricCanvas.setActiveObject(newTextObj);
-    fabricCanvas.renderAll();
-
-    pushHistoryAction({ type: 'FABRIC_ADD', object: newTextObj });
-    inlineEditorCard.classList.remove('visible');
-    statusBadge.textContent = `Capa #${newTextObj.layerNum} añadida`;
-    showPrecisionTools();
-    return;
-  }
-
-  // CASO 2: MODIFICAR TEXTO EXISTENTE EN FABRIC
-  if (currentTargetObject.isFabricObject) {
-    const obj = currentTargetObject.target;
-    obj.set({
-      text: newStr,
-      fontFamily: chosenFamily,
-      fontWeight: chosenBold ? 'bold' : 'normal',
-      fontStyle: chosenItalic ? 'italic' : 'normal',
-      fontSize: chosenPtSize * RENDER_SCALE,
-      fill: chosenColor
-    });
-    obj.setCoords();
-    fabricCanvas.renderAll();
-
-    inlineEditorCard.classList.remove('visible');
-    statusBadge.textContent = `Capa actualizada`;
-    showPrecisionTools();
-    return;
-  }
-
-  // CASO 3: MODIFICAR TEXTO ORIGINAL
-  if (currentTargetObject.isOriginalLine) {
-    const { lineData, domElement } = currentTargetObject;
-
-    const ctx = pdfCanvas.getContext('2d');
-    const padTop = lineData.h * 0.28;
-    const padBottom = lineData.h * 0.38;
-    const padX = 4;
-
-    const boxX = Math.max(0, Math.floor(lineData.x - padX));
-    const boxY = Math.max(0, Math.floor(lineData.y - padTop));
-    const boxW = Math.ceil(lineData.w + (padX * 2));
-    const boxH = Math.ceil(lineData.h + padTop + padBottom);
-
-    const originalImageData = ctx.getImageData(boxX, boxY, boxW, boxH);
-    const bgColor = getBackgroundColorAround(lineData.x, lineData.y);
-
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(boxX, boxY, boxW, boxH);
-
-    domElement.style.display = 'none';
-
-    const newTextRender = new fabric.Text(newStr, {
-      left: lineData.x,
-      top: lineData.y,
-      fontSize: chosenPtSize * RENDER_SCALE,
-      fontFamily: chosenFamily,
-      fontWeight: chosenBold ? 'bold' : 'normal',
-      fontStyle: chosenItalic ? 'italic' : 'normal',
-      fill: chosenColor,
-      selectable: true,
-      hasControls: true,
-      hasBorders: true
-    });
-
-    newTextRender.layerNum = lineData.id;
-    fabricCanvas.add(newTextRender);
-    fabricCanvas.setActiveObject(newTextRender);
-    fabricCanvas.renderAll();
-
-    const patchRef = {
-      originalLine: lineData,
-      newText: newStr,
-      fontFamily: chosenFamily,
-      bold: chosenBold,
-      italic: chosenItalic,
-      fontSize: chosenPtSize,
-      color: chosenColor,
-      textRender: newTextRender
-    };
-
-    pagesData[currentPageNumber].patches.push(patchRef);
-
-    pushHistoryAction({
-      type: 'TEXT_EDIT',
-      textRender: newTextRender,
-      patchRef,
-      domElement,
-      eraseData: { imageData: originalImageData, bgColor, box: { x: boxX, y: boxY, w: boxW, h: boxH } }
-    });
-
-    inlineEditorCard.classList.remove('visible');
-    statusBadge.textContent = `Capa #${lineData.id} editada`;
-    showPrecisionTools();
   }
 });
 
@@ -833,9 +696,7 @@ btnToggleGrid.addEventListener('click', () => {
 });
 
 function showPrecisionTools() {
-  if (!inlineEditorCard.classList.contains('visible')) {
-    precisionTools.classList.add('visible');
-  }
+  precisionTools.classList.add('visible');
 }
 
 function hidePrecisionTools() {
@@ -848,29 +709,14 @@ function onSelectionChanged(e) {
 
   layerBadge.style.display = 'inline-block';
   layerBadge.textContent = `Capa #${selected.layerNum || '--'}`;
-
-  if (selected.type === 'text') {
-    btnEditSelected.disabled = false;
-    statusBadge.textContent = `"${(selected.text || '').slice(0, 16)}..."`;
-  } else {
-    btnEditSelected.disabled = true;
-    statusBadge.textContent = 'Elemento seleccionado';
-  }
-
   showPrecisionTools();
 }
 
 function clearSelectionUI() {
   layerBadge.style.display = 'none';
-  btnEditSelected.disabled = true;
   statusBadge.textContent = `${currentPageNumber} de ${totalPages}`;
   hidePrecisionTools();
 }
-
-btnEditSelected.addEventListener('click', () => {
-  const active = fabricCanvas.getActiveObject();
-  if (active && active.type === 'text') openEditorForTarget(active);
-});
 
 // =========================================================
 // GUÍAS INTELIGENTES (SNAP TO CENTER)
@@ -977,7 +823,7 @@ btnDraw.addEventListener('click', () => {
   isDrawing = !isDrawing;
   fabricCanvas.isDrawingMode = isDrawing;
   btnDraw.classList.toggle('active-state', isDrawing);
-  statusBadge.textContent = isDrawing ? '✏️ Modo firma activo' : 'Documento listo';
+  statusBadge.textContent = isDrawing ? '🖊️ Modo firma activo' : 'Documento listo';
 });
 
 imgInput.addEventListener('change', (e) => {
@@ -1035,6 +881,8 @@ function base64ToUint8Array(dataUrl) {
 }
 
 btnSave.addEventListener('click', async () => {
+  if (activeInlineInput) commitDirectEdit();
+
   sheetBackdrop.classList.remove('active');
   if (!originalPdfBytes) return;
 
@@ -1128,7 +976,7 @@ btnSave.addEventListener('click', async () => {
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = downloadUrl;
-    a.download = 'documento_final.pdf';
+    a.download = 'documento_editado.pdf';
     document.body.appendChild(a);
     a.click();
 
