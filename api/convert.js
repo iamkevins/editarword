@@ -1,6 +1,6 @@
 export const config = {
   api: {
-    bodyParser: false, // Permite recibir el archivo binario completo sin límite pequeño
+    bodyParser: false,
   },
 };
 
@@ -10,7 +10,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Recibir los bytes del archivo Word (.docx)
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
@@ -23,7 +22,6 @@ export default async function handler(req, res) {
 
     const apiKey = process.env.CLOUDMERSIVE_API_KEY || 'f7fdc218-4f8f-42e8-b328-265fa06b4036';
 
-    // 2. Empaquetar como 'inputFile' tal como lo exige Cloudmersive
     const formData = new FormData();
     formData.append('inputFile', new Blob([buffer]), 'documento.docx');
 
@@ -41,8 +39,6 @@ export default async function handler(req, res) {
     }
 
     const pdfArrayBuffer = await response.arrayBuffer();
-
-    // 3. Devolver el PDF vectorial nativo para el visor
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(Buffer.from(pdfArrayBuffer));
   } catch (error) {
