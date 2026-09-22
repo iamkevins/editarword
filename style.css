@@ -71,19 +71,6 @@ html, body {
   line-height: 1;
 }
 
-.btn-edit-nav:not(:disabled) {
-  background: rgba(37, 99, 235, 0.3);
-  border-color: #2563eb;
-  color: #60a5fa;
-  animation: pulse-edit 1.4s infinite;
-}
-
-@keyframes pulse-edit {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-
 /* SELECTOR NUMÉRICO DIRECTO (1 / 2) */
 .page-num-btn {
   width: auto !important;
@@ -167,7 +154,7 @@ html, body {
   display: block;
 }
 
-/* CAPA DE DETECCIÓN: EL CONTENEDOR NUNCA BLOQUEA NADA */
+/* CAPA DE DETECCIÓN Y EDICIÓN EN SITIO */
 .text-detect-layer {
   position: absolute;
   top: 0;
@@ -175,27 +162,44 @@ html, body {
   width: 100%;
   height: 100%;
   pointer-events: none !important;
-  z-index: 30; /* Por encima del canvas de Fabric */
+  z-index: 30;
 }
 
-/* SOLO LAS CAJAS AZULES CAPTURAN TOQUES CUANDO ESTÁ ACTIVO EL MODO EDITAR */
 .detected-line {
   position: absolute;
-  border-radius: 3px;
+  border-radius: 2px;
   pointer-events: none;
 }
 
+/* En modo escribir, los textos se resaltan de forma sutil */
 .text-detect-layer.interactive .detected-line {
   pointer-events: auto !important;
-  border: 1.5px dashed #2563eb;
-  background: rgba(37, 99, 235, 0.15);
-  cursor: pointer;
+  border-bottom: 1.5px dashed rgba(37, 99, 235, 0.6);
+  background: rgba(37, 99, 235, 0.08);
+  cursor: text;
   touch-action: manipulation;
 }
 
+.text-detect-layer.interactive .detected-line:hover,
 .text-detect-layer.interactive .detected-line:active {
-  background: rgba(37, 99, 235, 0.38);
-  border-color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.2);
+}
+
+/* INPUT DE ESCRITURA DIRECTA SOBRE EL DOCUMENTO */
+.inline-direct-input {
+  position: absolute;
+  z-index: 50;
+  background: #ffffff;
+  border: 1.5px solid #2563eb !important;
+  border-radius: 3px;
+  outline: none;
+  padding: 0 2px;
+  margin: 0;
+  line-height: 1.15;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  box-sizing: border-box;
 }
 
 .fabric-wrapper {
@@ -389,177 +393,6 @@ html, body {
   pointer-events: none;
 }
 
-/* MODAL DE EDICIÓN FLOTANTE */
-.inline-editor-card {
-  position: fixed;
-  bottom: calc(85px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%) translateY(30px);
-  width: calc(100% - 24px);
-  max-width: 480px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 16px;
-  padding: 14px;
-  z-index: 100000;
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.inline-editor-card.visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(-50%) translateY(0);
-}
-
-.editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #f1f5f9;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.font-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.font-select {
-  flex: 1;
-  min-width: 150px;
-  background: #0f172a;
-  color: #f8fafc;
-  border: 1px solid #475569;
-  border-radius: 8px;
-  padding: 7px 8px;
-  font-size: 13px;
-  outline: none;
-}
-
-.font-select optgroup {
-  background: #1e293b;
-  color: #94a3b8;
-  font-weight: bold;
-}
-
-.font-select option {
-  background: #0f172a;
-  color: #ffffff;
-  padding: 4px;
-}
-
-.font-styles {
-  display: flex;
-  gap: 4px;
-}
-
-.style-toggle {
-  background: #0f172a;
-  color: #94a3b8;
-  border: 1px solid #475569;
-  border-radius: 6px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.style-toggle.active {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
-}
-
-.font-size-ctrl {
-  display: flex;
-  align-items: center;
-  background: #0f172a;
-  border: 1px solid #475569;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.size-btn {
-  background: transparent;
-  color: #f8fafc;
-  border: none;
-  width: 24px;
-  height: 30px;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.size-input {
-  width: 38px;
-  background: transparent;
-  color: #ffffff;
-  border: none;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  outline: none;
-}
-
-.color-picker {
-  -webkit-appearance: none;
-  appearance: none;
-  border: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  cursor: pointer;
-  background: transparent;
-}
-
-.color-picker::-webkit-color-swatch {
-  border: 1px solid #475569;
-  border-radius: 6px;
-}
-
-.inline-editor-card textarea {
-  width: 100%;
-  background: #0f172a;
-  color: #ffffff;
-  border: 1px solid #475569;
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 15px;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.btn-action {
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-action.primary { background: #2563eb; color: white; }
-.btn-action.secondary { background: #334155; color: #38bdf8; border: 1px solid #475569; }
-.btn-icon { background: transparent; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; }
-
 #empty-state {
   position: absolute;
   top: 50%;
@@ -588,6 +421,8 @@ html, body {
   font-weight: 600;
   cursor: pointer;
 }
+
+.btn-icon { background: transparent; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; }
 
 /* PANEL INFERIOR */
 .sheet-backdrop {
