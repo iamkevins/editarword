@@ -8,8 +8,6 @@ let currentPage = 0;
 const undoStack = [];
 const redoStack = [];
 let isInternalUndoRedo = false;
-let inputDebounceTimer = null;
-let lastPageContent = {};
 
 // DOM
 const viewport = document.getElementById('viewport');
@@ -20,7 +18,6 @@ const gridOverlay = document.getElementById('grid-overlay');
 
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
-const btnEditFloating = document.getElementById('btn-edit-floating');
 const statusBadge = document.getElementById('status-badge');
 const layerBadge = document.getElementById('layer-badge');
 
@@ -70,29 +67,34 @@ let isItalicActive = false;
 let isEditingDocActive = false;
 
 // =========================================================
-// SISTEMA DE HISTORIAL (DESHACER / REHACER ACTIVO)
+// HISTORIAL INTELIGENTE (DESHACER / REHACER ACTIVO)
 // =========================================================
 function updateUndoRedoUI() {
-  btnUndo.disabled = undoStack.length === 0;
-  btnRedo.disabled = redoStack.length === 0;
+  btnUndo.disabled = !isEditingDocActive && undoStack.length === 0;
+  btnRedo.disabled = !isEditingDocActive && redoStack.length === 0;
 }
 
 function pushHistoryAction(action) {
   if (isInternalUndoRedo) return;
   undoStack.push(action);
-  redoStack.length = 0; // Limpiar rehacer
+  redoStack.length = 0;
   updateUndoRedoUI();
 }
 
-function undo() {
+function executeUndo() {
+  // 1. Si el usuario está editando el texto del documento, usar el historial nativo
+  if (isEditingDocActive) {
+    document.execCommand('undo', false, null);
+    statusBadge.textContent = 'Texto deshecho';
+    return;
+  }
+
+  // 2. Historial de elementos flotantes
   if (undoStack.length === 0) return;
   isInternalUndoRedo = true;
   const action = undoStack.pop();
 
-  if (action.type === 'PAGE_TEXT_INPUT') {
-    docPages[action.pageIndex].innerHTML = action.prevHTML;
-    lastPageContent[action.pageIndex] = action.prevHTML;
-  } else if (action.type === 'FLOATING_ADD') {
+  if (action.type === 'FLOATING_ADD') {
     action.element.remove();
     clearSelection();
   }
@@ -103,15 +105,18 @@ function undo() {
   statusBadge.textContent = 'Acción deshecha';
 }
 
-function redo() {
+function executeRedo() {
+  if (isEditingDocActive) {
+    document.execCommand('redo', false, null);
+    statusBadge.textContent = 'Texto rehecho';
+    return;
+  }
+
   if (redoStack.length === 0) return;
   isInternalUndoRedo = true;
   const action = redoStack.pop();
 
-  if (action.type === 'PAGE_TEXT_INPUT') {
-    docPages[action.pageIndex].innerHTML = action.newHTML;
-    lastPageContent[action.pageIndex] = action.newHTML;
-  } else if (action.type === 'FLOATING_ADD') {
+  if (action.type === 'FLOATING_ADD') {
     docPages[action.pageIndex].appendChild(action.element);
     selectFloatingItem(action.element);
   }
@@ -122,19 +127,19 @@ function redo() {
   statusBadge.textContent = 'Acción rehecha';
 }
 
-btnUndo.addEventListener('click', undo);
-btnRedo.addEventListener('click', redo);
+btnUndo.addEventListener('click', executeUndo);
+btnRedo.addEventListener('click', executeRedo);
 
-// Atajos de teclado Ctrl+Z / Ctrl+Y
+// Atajos universales Ctrl+Z y Ctrl+Y
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'TEXTAREA') return;
 
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault();
-    e.shiftKey ? redo() : undo();
+    e.shiftKey ? executeRedo() : executeUndo();
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
     e.preventDefault();
-    redo();
+    executeRedo();
   }
 });
 
@@ -221,7 +226,12 @@ docxInput.addEventListener('change', async (e) => {
       const arrayBuffer = event.target.result;
       docContent.innerHTML = '';
 
-      // Opciones de máxima fidelidad
+      const docxLib = window.docx || window.docxPreview;
+      if (!docxLib) {
+        throw new Error('La librería docx-preview no cargó correctamente.');
+      }
+
+      // Opciones para evitar saltos artificiales y hojas duplicadas
       const options = {
         className: 'docx',
         inWrapper: false,
@@ -239,36 +249,26 @@ docxInput.addEventListener('change', async (e) => {
         renderEndnotes: true
       };
 
-      await docx.renderAsync(arrayBuffer, docContent, null, options);
+      await docxLib.renderAsync(arrayBuffer, docContent, null, options);
 
       // Detectar secciones generadas
       let sections = Array.from(docContent.querySelectorAll('section.docx'));
 
-      // FILTRO INTELIGENTE: Eliminar páginas vacías al final causadas por saltos residuales de Word
+      // FILTRO: Eliminar páginas vacías al final causadas por saltos residuales
       for (let i = sections.length - 1; i > 0; i--) {
         const sec = sections[i];
         const hasMedia = sec.querySelector('img, table, canvas, svg');
         const text = (sec.innerText || '').trim();
-        // Si no tiene imágenes, tablas y su texto es nulo, es una hoja fantasma y se elimina
         if (!hasMedia && text.length === 0) {
           sec.remove();
         }
       }
 
-      // Re-consultar las secciones limpias definitivas
       sections = Array.from(docContent.querySelectorAll('section.docx'));
       docPages = sections.length > 0 ? sections : [docContent];
 
       emptyState.style.display = 'none';
       sheetWrapper.style.display = 'block';
-
-      // Inicializar historial de contenido
-      lastPageContent = {};
-      docPages.forEach((sec, idx) => {
-        lastPageContent[idx] = sec.innerHTML;
-        // Escuchar cambios de escritura para el historial de Deshacer
-        sec.addEventListener('input', () => onPageInput(idx));
-      });
 
       setupPagination();
       showPage(0);
@@ -283,27 +283,6 @@ docxInput.addEventListener('change', async (e) => {
   };
   reader.readAsArrayBuffer(file);
 });
-
-// Captura continua de texto para Deshacer
-function onPageInput(pageIdx) {
-  clearTimeout(inputDebounceTimer);
-  inputDebounceTimer = setTimeout(() => {
-    const sec = docPages[pageIdx];
-    if (!sec) return;
-    const currentHTML = sec.innerHTML;
-    const previousHTML = lastPageContent[pageIdx];
-
-    if (currentHTML !== previousHTML) {
-      pushHistoryAction({
-        type: 'PAGE_TEXT_INPUT',
-        pageIndex: pageIdx,
-        prevHTML: previousHTML,
-        newHTML: currentHTML
-      });
-      lastPageContent[pageIdx] = currentHTML;
-    }
-  }, 400); // 400ms tras dejar de teclear guarda el estado
-}
 
 // =========================================================
 // SISTEMA NUMÉRICO DE NAVEGACIÓN (1 / 2)
@@ -321,7 +300,7 @@ function setupPagination() {
     btnNextPage.style.display = 'none';
   }
 
-  // Generar cuadrícula en el modal con números directos: 1, 2, 3...
+  // Generar cuadrícula modal con números directos
   pageButtonsGrid.innerHTML = '';
   for (let i = 0; i < total; i++) {
     const tile = document.createElement('button');
@@ -353,7 +332,6 @@ function showPage(pageIndex) {
     }
   });
 
-  // Mostrar solo el número actual y el total (ej: 1 / 2)
   pageIndicator.textContent = `${currentPage + 1} / ${docPages.length}`;
   btnPrevPage.disabled = (currentPage === 0);
   btnNextPage.disabled = (currentPage === docPages.length - 1);
@@ -396,6 +374,9 @@ btnToggleDocEdit.addEventListener('click', () => {
   activeSec.classList.toggle('editing-active', isEditingDocActive);
   btnToggleDocEdit.classList.toggle('active-state', isEditingDocActive);
 
+  // Al activar la edición, los botones de deshacer/rehacer se habilitan inmediatamente
+  updateUndoRedoUI();
+
   if (isEditingDocActive) {
     statusBadge.textContent = `✏️ Editando (${currentPage + 1})`;
     activeSec.focus();
@@ -415,7 +396,6 @@ function selectFloatingItem(item) {
   layerBadge.style.display = 'inline-block';
   layerBadge.textContent = `Capa #${item.dataset.layerId}`;
 
-  btnEditFloating.disabled = (item.dataset.type !== 'text');
   precisionTools.classList.add('visible');
 }
 
@@ -423,7 +403,6 @@ function clearSelection() {
   if (activeFloatingItem) activeFloatingItem.classList.remove('selected');
   activeFloatingItem = null;
   layerBadge.style.display = 'none';
-  btnEditFloating.disabled = true;
   precisionTools.classList.remove('visible');
 }
 
@@ -484,6 +463,29 @@ function makeFloatingDraggable(el) {
   };
 
   el.addEventListener('pointerdown', onDown);
+
+  // Doble toque / doble clic para re-editar el texto flotante
+  el.addEventListener('dblclick', () => {
+    if (el.dataset.type === 'text') {
+      openEditorForFloating(el);
+    }
+  });
+}
+
+function openEditorForFloating(el) {
+  inlineEditorInput.value = el.innerText;
+  editorTitle.textContent = `✏️ Modificar Capa #${el.dataset.layerId}`;
+
+  fontFamilySelect.value = el.style.fontFamily || 'Arial';
+  fontSizeInput.value = parseInt(el.style.fontSize) || 16;
+  fontColorPicker.value = el.style.color || '#000000';
+
+  isBoldActive = el.style.fontWeight === 'bold';
+  isItalicActive = el.style.fontStyle === 'italic';
+  btnToggleBold.classList.toggle('active', isBoldActive);
+  btnToggleItalic.classList.toggle('active', isItalicActive);
+
+  inlineEditorCard.classList.add('visible');
 }
 
 // =========================================================
@@ -554,24 +556,6 @@ btnAddFloatingText.addEventListener('click', () => {
   editorTitle.textContent = `🔤 Cuadro (Capa #${floatingCounter + 1})`;
   inlineEditorCard.classList.add('visible');
   inlineEditorInput.focus();
-});
-
-btnEditFloating.addEventListener('click', () => {
-  if (!activeFloatingItem || activeFloatingItem.dataset.type !== 'text') return;
-
-  inlineEditorInput.value = activeFloatingItem.innerText;
-  editorTitle.textContent = `✏️ Modificar Capa #${activeFloatingItem.dataset.layerId}`;
-
-  fontFamilySelect.value = activeFloatingItem.style.fontFamily || 'Arial';
-  fontSizeInput.value = parseInt(activeFloatingItem.style.fontSize) || 16;
-  fontColorPicker.value = activeFloatingItem.style.color || '#000000';
-
-  isBoldActive = activeFloatingItem.style.fontWeight === 'bold';
-  isItalicActive = activeFloatingItem.style.fontStyle === 'italic';
-  btnToggleBold.classList.toggle('active', isBoldActive);
-  btnToggleItalic.classList.toggle('active', isItalicActive);
-
-  inlineEditorCard.classList.add('visible');
 });
 
 closeInlineEditor.addEventListener('click', () => inlineEditorCard.classList.remove('visible'));
@@ -666,7 +650,7 @@ btnResetZoom.addEventListener('click', () => {
 });
 
 // =========================================================
-// CONVERTIR A PDF (RESPETA HOJAS EXACTAS Y FORMATO)
+// CONVERTIR A PDF
 // =========================================================
 btnExportPdf.addEventListener('click', () => {
   if (!docPages || docPages.length === 0) {
@@ -681,7 +665,7 @@ btnExportPdf.addEventListener('click', () => {
 
   statusBadge.textContent = 'Generando PDF...';
 
-  // Mostrar todas las hojas en orden para compilar el PDF completo
+  // Mostrar todas las hojas en orden correlativo
   docPages.forEach(sec => {
     sec.style.display = 'block';
     sec.style.marginBottom = '0px';
