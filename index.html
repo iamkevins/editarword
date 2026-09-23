@@ -3,97 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Word Web - Vercel Edition</title>
+  <title>Editor Word Web</title>
+  
+  <!-- Estilos del motor de Word de Syncfusion -->
+  <link href="https://cdn.syncfusion.com/ej2/24.2.7/material.css" rel="stylesheet">
+  
+  <!-- Script del motor del editor -->
+  <script src="https://cdn.syncfusion.com/ej2/24.2.7/dist/ej2.min.js"></script>
+
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    body, html {
+    html, body {
       height: 100%;
       width: 100%;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #f3f2f1;
+      background-color: #f4f5f7;
     }
-    #editor-container {
-      width: 100%;
-      height: 100%;
+    #document-editor {
+      height: 100vh !important;
+      width: 100vw !important;
     }
-    #loading {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #185abd;
-      font-weight: 600;
-      font-size: 16px;
+    /* Ocultar avisos flotantes de desarrollo */
+    div[style*="position: fixed"][style*="z-index: 999999999"] {
+      display: none !important;
     }
   </style>
 </head>
 <body>
 
-  <div id="loading">Conectando con el motor de Word...</div>
-  <div id="editor-container"></div>
+  <div id="document-editor"></div>
 
   <script>
-    // 1. URL del servidor OnlyOffice Document Server
-    // Reemplaza esta URL con la de tu servidor (ej. en Railway, tu VPS o demo)
-    const ONLYOFFICE_SERVER_URL = "https://documentserver.onlyoffice.com";
+    // Inicializar el editor con la cinta de opciones completa de Word
+    var container = new ej.documenteditor.DocumentEditorContainer({
+      enableToolbar: true,
+      height: '100%',
+      // Servicio en la nube para procesar la estructura binaria de los .docx
+      serviceUrl: 'https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/'
+    });
 
-    // 2. Cargar la API de OnlyOffice dinámicamente
-    const script = document.createElement("script");
-    script.src = `${ONLYOFFICE_SERVER_URL}/web-apps/apps/api/documents/api.js`;
-    script.onload = initEditor;
-    script.onerror = () => {
-      document.getElementById("loading").innerText = "Error al conectar con el servidor de documentos.";
-    };
-    document.head.appendChild(script);
-
-    function initEditor() {
-      document.getElementById("loading").style.display = "none";
-
-      const origin = window.location.origin;
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
-
-      const config = {
-        document: {
-          fileType: "docx",
-          key: "doc_" + Date.now(), // Clave única de sesión
-          title: "Documento.docx",
-          // URL pública accesible en Vercel donde OnlyOffice descarga el archivo
-          url: `${origin}/public/muestra.docx`,
-          permissions: {
-            edit: true,
-            download: true,
-            print: true
-          }
-        },
-        documentType: "word",
-        editorConfig: {
-          mode: "edit",
-          lang: "es",
-          // Endpoint Serverless en Vercel que recibe el archivo modificado
-          callbackUrl: `${origin}/api/callback`,
-          user: {
-            id: "user-" + Math.floor(Math.random() * 1000),
-            name: "Usuario Web"
-          },
-          customization: {
-            autosave: true,
-            // Activa la barra compacta si está en pantalla táctil
-            compactToolbar: isMobile
-          }
-        },
-        // "mobile" activa la vista idéntica a la app de Word Android
-        type: isMobile ? "mobile" : "desktop",
-        width: "100%",
-        height: "100%"
-      };
-
-      new DocsAPI.DocEditor("editor-container", config);
-    }
+    // Montar el editor en pantalla
+    container.appendTo('#document-editor');
   </script>
 </body>
 </html>
