@@ -3,455 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Word Android Web - Lector y Editor Real</title>
-
-  <!-- Motores para descomprimir y renderizar archivos .docx nativos -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
-
+  <title>Word Web - Vercel Edition</title>
   <style>
-    :root {
-      --word-blue: #185abd;
-      --word-blue-light: #e8f0fe;
-      --bg-mobile: #eef1f5;
-      --border-gray: #dadce0;
-      --text-primary: #202124;
-      --text-secondary: #5f6368;
-    }
-
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      -webkit-tap-highlight-color: transparent;
     }
-
-    body {
+    body, html {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg-mobile);
-      color: var(--text-primary);
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
+      background-color: #f3f2f1;
     }
-
-    /* 1. Barra superior estilo Word Android */
-    .android-header {
-      background-color: #ffffff;
-      height: 52px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-      border-bottom: 1px solid var(--border-gray);
-      z-index: 10;
-      flex-shrink: 0;
-    }
-
-    .header-left, .header-right {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .doc-info {
-      display: flex;
-      flex-direction: column;
-      margin-left: 6px;
-    }
-
-    .doc-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-primary);
-      max-width: 140px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .doc-status {
-      font-size: 11px;
-      color: #1e7e34;
-      font-weight: 500;
-    }
-
-    .icon-btn {
-      background: transparent;
-      border: none;
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--text-secondary);
-      font-size: 17px;
-    }
-
-    .icon-btn:active {
-      background-color: #e8eaed;
-    }
-
-    .icon-btn.active {
-      color: var(--word-blue);
-      background-color: var(--word-blue-light);
-    }
-
-    /* 2. Área de visualización del documento */
-    .viewport {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px 10px 70px 10px;
-    }
-
     #editor-container {
       width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      height: 100%;
     }
-
-    /* Ajustes específicos de docx-preview en modo móvil y página */
-    .docx-wrapper {
-      background: transparent !important;
-      padding: 0 !important;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    /* Vista de Impresión (Páginas A4 tradicionales) */
-    .print-mode .docx-wrapper > section.docx {
-      box-shadow: 0 3px 12px rgba(0,0,0,0.15) !important;
-      margin-bottom: 20px !important;
-      background: #ffffff !important;
-      outline: none;
-    }
-
-    /* Vista Móvil (Word Reflow: texto adaptado a la pantalla del teléfono) */
-    .mobile-mode .docx-wrapper > section.docx {
-      width: 100% !important;
-      min-width: 0 !important;
-      max-width: 650px !important;
-      padding: 16px 14px !important;
-      box-shadow: none !important;
-      border: 1px solid var(--border-gray) !important;
-      margin-bottom: 12px !important;
-      background: #ffffff !important;
-      outline: none;
-    }
-
-    /* 3. Barra de herramientas rápida inferior */
-    .bottom-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #ffffff;
-      border-top: 1px solid var(--border-gray);
-      height: 48px;
-      display: flex;
-      align-items: center;
-      justify-content: space-around;
-      padding: 0 8px;
-      z-index: 20;
-    }
-
-    .quick-tool {
-      background: transparent;
-      border: none;
-      font-size: 15px;
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #185abd;
       font-weight: 600;
-      width: 38px;
-      height: 38px;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--text-primary);
-    }
-
-    .quick-tool:active {
-      background-color: #f1f3f4;
-    }
-
-    /* 4. Panel desplegable inferior (Bottom Sheet Ribbon) */
-    .bottom-sheet {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: #ffffff;
-      border-top-left-radius: 14px;
-      border-top-right-radius: 14px;
-      box-shadow: 0 -4px 18px rgba(0,0,0,0.18);
-      transform: translateY(100%);
-      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 30;
-      max-height: 55vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .bottom-sheet.open {
-      transform: translateY(0);
-    }
-
-    .sheet-tab-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--border-gray);
-    }
-
-    .tab-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--word-blue);
-    }
-
-    .sheet-body {
-      padding: 14px 16px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .sheet-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .sheet-row label {
-      font-size: 14px;
-      color: var(--text-secondary);
-    }
-
-    .sheet-select {
-      border: 1px solid var(--border-gray);
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 13px;
-      background: white;
-      outline: none;
-    }
-
-    /* Cortina de oscurecimiento */
-    .scrim {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.35);
-      z-index: 25;
-      display: none;
-    }
-
-    .scrim.show {
-      display: block;
+      font-size: 16px;
     }
   </style>
 </head>
-<body class="mobile-mode">
+<body>
 
-  <!-- Input oculto para cargar archivos de Word -->
-  <input 
-    type="file" 
-    id="docxFileInput" 
-    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-    style="display:none" 
-    onchange="handleFileSelected(event)"
-  >
-
-  <!-- Encabezado estilo Android -->
-  <header class="android-header">
-    <div class="header-left">
-      <button class="icon-btn" title="Atrás">←</button>
-      <div class="doc-info">
-        <span class="doc-title" id="fileTitle">Documento.docx</span>
-        <span class="doc-status" id="fileStatus">Listo</span>
-      </div>
-    </div>
-    
-    <div class="header-right">
-      <!-- Selector de Vista Móvil / Impresión -->
-      <button class="icon-btn active" id="viewToggle" onclick="toggleView()" title="Vista Móvil">📱</button>
-      <button class="icon-btn" onclick="document.execCommand('undo')" title="Deshacer">↩</button>
-      <button class="icon-btn" onclick="document.execCommand('redo')" title="Rehacer">↪</button>
-      <!-- Botón de apertura garantizado -->
-      <button class="icon-btn" onclick="triggerOpenFileDialog()" title="Abrir archivo Word">📂</button>
-    </div>
-  </header>
-
-  <!-- Contenedor del documento -->
-  <main class="viewport">
-    <div id="editor-container">
-      <div style="text-align: center; margin-top: 60px; color: #5f6368; padding: 20px;">
-        <p style="font-size: 17px; font-weight: 500; margin-bottom: 8px;">No hay ningún documento abierto</p>
-        <p style="font-size: 14px;">Toca el icono de la carpeta <strong>📂</strong> arriba a la derecha para cargar tu archivo .docx.</p>
-      </div>
-    </div>
-  </main>
-
-  <!-- Barra de herramientas rápida inferior -->
-  <nav class="bottom-bar">
-    <button class="quick-tool" onclick="formatDoc('bold')"><b>N</b></button>
-    <button class="quick-tool" onclick="formatDoc('italic')"><i>K</i></button>
-    <button class="quick-tool" onclick="formatDoc('underline')"><u>S</u></button>
-    <button class="quick-tool" onclick="formatDoc('foreColor', '#d93025')" style="color:#d93025">A</button>
-    <button class="quick-tool" onclick="formatDoc('insertUnorderedList')">•</button>
-    <button class="quick-tool" onclick="toggleSheet()" style="color:var(--word-blue);">▲</button>
-  </nav>
-
-  <!-- Fondo oscuro al desplegar menú -->
-  <div class="scrim" id="scrim" onclick="toggleSheet()"></div>
-
-  <!-- Cinta inferior desplegable -->
-  <div class="bottom-sheet" id="bottomSheet">
-    <div class="sheet-tab-header">
-      <span class="tab-title">Inicio ▾</span>
-      <button class="icon-btn" onclick="toggleSheet()">▼</button>
-    </div>
-
-    <div class="sheet-body">
-      <div class="sheet-row">
-        <label>Tipografía</label>
-        <select class="sheet-select" onchange="formatDoc('fontName', this.value)">
-          <option value="Calibri" selected>Calibri</option>
-          <option value="Arial">Arial</option>
-          <option value="Times New Roman">Times New Roman</option>
-        </select>
-      </div>
-
-      <div class="sheet-row">
-        <label>Tamaño</label>
-        <select class="sheet-select" onchange="formatDoc('fontSize', this.value)">
-          <option value="2">10 pt</option>
-          <option value="3" selected>11 pt</option>
-          <option value="4">14 pt</option>
-          <option value="5">18 pt</option>
-        </select>
-      </div>
-
-      <div class="sheet-row">
-        <label>Alineación</label>
-        <div>
-          <button class="quick-tool" onclick="formatDoc('justifyLeft')">Izq</button>
-          <button class="quick-tool" onclick="formatDoc('justifyCenter')">Cen</button>
-          <button class="quick-tool" onclick="formatDoc('justifyRight')">Der</button>
-          <button class="quick-tool" onclick="formatDoc('justifyFull')">Just</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div id="loading">Conectando con el motor de Word...</div>
+  <div id="editor-container"></div>
 
   <script>
-    const container = document.getElementById('editor-container');
-    const fileTitle = document.getElementById('fileTitle');
-    const fileStatus = document.getElementById('fileStatus');
-    const bottomSheet = document.getElementById('bottomSheet');
-    const scrim = document.getElementById('scrim');
-    const viewToggle = document.getElementById('viewToggle');
-    const fileInput = document.getElementById('docxFileInput');
+    // 1. URL del servidor OnlyOffice Document Server
+    // Reemplaza esta URL con la de tu servidor (ej. en Railway, tu VPS o demo)
+    const ONLYOFFICE_SERVER_URL = "https://documentserver.onlyoffice.com";
 
-    // 1. Disparador seguro del selector de archivos
-    function triggerOpenFileDialog() {
-      fileInput.value = ''; // Limpia el valor previo para permitir recargar el mismo archivo
-      fileInput.click();
-    }
+    // 2. Cargar la API de OnlyOffice dinámicamente
+    const script = document.createElement("script");
+    script.src = `${ONLYOFFICE_SERVER_URL}/web-apps/apps/api/documents/api.js`;
+    script.onload = initEditor;
+    script.onerror = () => {
+      document.getElementById("loading").innerText = "Error al conectar con el servidor de documentos.";
+    };
+    document.head.appendChild(script);
 
-    // 2. Procesamiento y renderizado del archivo Word real
-    function handleFileSelected(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+    function initEditor() {
+      document.getElementById("loading").style.display = "none";
 
-      fileTitle.innerText = file.name;
-      fileStatus.innerText = "Cargando...";
+      const origin = window.location.origin;
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
 
-      const reader = new FileReader();
-
-      reader.onload = function(e) {
-        const arrayBuffer = e.target.result;
-        container.innerHTML = ""; // Limpia el contenido previo
-
-        const renderOptions = {
-          inWrapper: true,
-          ignoreWidth: false,
-          ignoreHeight: false,
-          breakPages: true,
-          renderHeaders: true,
-          renderFooters: true,
-          renderFootnotes: true,
-          experimental: true,
-          useBase64URL: true
-        };
-
-        docx.renderAsync(arrayBuffer, container, null, renderOptions)
-          .then(() => {
-            fileStatus.innerText = "Guardado localmente";
-
-            // Activa la edición en cada una de las hojas renderizadas
-            const pages = container.querySelectorAll('.docx');
-            pages.forEach(page => {
-              page.setAttribute('contenteditable', 'true');
-              page.setAttribute('spellcheck', 'true');
-            });
-          })
-          .catch(err => {
-            console.error(err);
-            fileStatus.innerText = "Error";
-            alert("No se pudo leer el archivo Word: " + err.message);
-          });
+      const config = {
+        document: {
+          fileType: "docx",
+          key: "doc_" + Date.now(), // Clave única de sesión
+          title: "Documento.docx",
+          // URL pública accesible en Vercel donde OnlyOffice descarga el archivo
+          url: `${origin}/public/muestra.docx`,
+          permissions: {
+            edit: true,
+            download: true,
+            print: true
+          }
+        },
+        documentType: "word",
+        editorConfig: {
+          mode: "edit",
+          lang: "es",
+          // Endpoint Serverless en Vercel que recibe el archivo modificado
+          callbackUrl: `${origin}/api/callback`,
+          user: {
+            id: "user-" + Math.floor(Math.random() * 1000),
+            name: "Usuario Web"
+          },
+          customization: {
+            autosave: true,
+            // Activa la barra compacta si está en pantalla táctil
+            compactToolbar: isMobile
+          }
+        },
+        // "mobile" activa la vista idéntica a la app de Word Android
+        type: isMobile ? "mobile" : "desktop",
+        width: "100%",
+        height: "100%"
       };
 
-      reader.readAsArrayBuffer(file);
-    }
-
-    // Formato de texto básico
-    function formatDoc(cmd, value = null) {
-      document.execCommand(cmd, false, value);
-    }
-
-    // Alternar entre Vista Móvil y Vista de Impresión A4
-    function toggleView() {
-      const body = document.body;
-      if (body.classList.contains('mobile-mode')) {
-        body.classList.remove('mobile-mode');
-        body.classList.add('print-mode');
-        viewToggle.classList.remove('active');
-        viewToggle.innerText = '📄';
-        viewToggle.title = "Vista de Impresión activa";
-      } else {
-        body.classList.remove('print-mode');
-        body.classList.add('mobile-mode');
-        viewToggle.classList.add('active');
-        viewToggle.innerText = '📱';
-        viewToggle.title = "Vista Móvil activa";
-      }
-    }
-
-    // Abrir/cerrar panel inferior
-    function toggleSheet() {
-      const isOpen = bottomSheet.classList.contains('open');
-      if (isOpen) {
-        bottomSheet.classList.remove('open');
-        scrim.classList.remove('show');
-      } else {
-        bottomSheet.classList.add('open');
-        scrim.classList.add('show');
-      }
+      new DocsAPI.DocEditor("editor-container", config);
     }
   </script>
 </body>
