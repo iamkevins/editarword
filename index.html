@@ -2,20 +2,20 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <!-- interactive-widget=resizes-content evita que el teclado de Android rompa la pantalla -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-  <title>Word Android Web</title>
+  <title>Word Móvil Web</title>
 
-  <!-- JSZip para descomprimir el .docx localmente sin servidores externos -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Motor confiable para procesar .docx en el cliente -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
   <style>
     :root {
       --word-blue: #185abd;
       --word-blue-light: #e8f0fe;
-      --bg-mobile: #f4f5f7;
+      --bg-mobile: #f0f2f5;
       --border-gray: #dcdcdc;
-      --text-main: #202124;
+      --text-main: #242424;
+      --ribbon-bg: #ffffff;
     }
 
     * {
@@ -25,9 +25,8 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* 100dvh ajusta dinámicamente el alto al abrir el teclado virtual */
     body {
-      font-family: "Calibri", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: "Calibri", "Aptos", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg-mobile);
       color: var(--text-main);
       display: flex;
@@ -36,133 +35,172 @@
       overflow: hidden;
     }
 
-    /* Encabezado superior estilo Word Android */
-    .android-header {
-      background: #ffffff;
+    /* 1. BARRA SUPERIOR ESTILO WORD ANDROID */
+    .word-header {
+      background-color: #ffffff;
       height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 12px;
+      padding: 0 10px;
       border-bottom: 1px solid var(--border-gray);
+      z-index: 100;
       flex-shrink: 0;
-      z-index: 10;
     }
 
     .header-left, .header-right {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
     }
 
-    .doc-meta {
+    .doc-badge {
       display: flex;
       flex-direction: column;
       margin-left: 6px;
     }
 
-    .doc-title {
+    .doc-name {
       font-size: 15px;
       font-weight: 600;
-      max-width: 140px;
+      max-width: 130px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: var(--text-main);
     }
 
     .doc-status {
       font-size: 11px;
-      color: #1e7e34;
+      color: #107c41;
       font-weight: 500;
     }
 
-    .btn-icon {
+    .btn-header {
       background: transparent;
       border: none;
       width: 38px;
       height: 38px;
       border-radius: 50%;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      cursor: pointer;
+      font-size: 17px;
       color: #5f6368;
+      cursor: pointer;
     }
 
-    .btn-icon:active {
-      background: #e8eaed;
+    .btn-header:active {
+      background-color: #f1f3f4;
     }
 
-    .btn-icon.active {
+    .btn-header.active {
       color: var(--word-blue);
-      background: var(--word-blue-light);
+      background-color: var(--word-blue-light);
     }
 
-    /* Zona de visualización y edición con scroll táctil suave */
-    .viewport {
+    /* 2. ÁREA DEL DOCUMENTO (CON ESPACIO ANTI-TECLADO) */
+    .document-viewport {
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       display: flex;
       justify-content: center;
-      padding: 16px 12px 300px 12px; /* Margen inferior amplio para escribir con teclado sin estorbos */
+      padding: 16px 12px 320px 12px; /* 320px para que el teclado nunca tape lo que escribes */
+      scroll-behavior: smooth;
     }
 
-    /* Modo Móvil: flujo continuo de texto como en la app de Android */
-    .editor {
+    /* Modo Móvil: adaptable a cualquier teléfono */
+    .editor-page {
       width: 100%;
-      max-width: 720px;
+      max-width: 680px;
       background: transparent;
       outline: none;
       font-size: 16px;
       line-height: 1.6;
       word-break: break-word;
-      min-height: 50vh;
+      min-height: 40vh;
     }
 
-    /* Modo Página A4 conmutable */
-    .viewport.print-mode .editor {
+    /* Modo Impresión: Página A4 con sombra */
+    .document-viewport.print-mode .editor-page {
       background: #ffffff;
-      padding: 24px 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 28px 22px;
       border: 1px solid var(--border-gray);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
       border-radius: 2px;
     }
 
-    /* Formato de tablas e imágenes importadas */
-    .editor table {
+    /* Estilos visuales de Word para títulos, tablas e imágenes */
+    .editor-page h1 {
+      color: #1f4e79;
+      font-size: 20pt;
+      margin: 18px 0 8px 0;
+      font-weight: 600;
+    }
+
+    .editor-page h2 {
+      color: #2e75b6;
+      font-size: 15pt;
+      margin: 14px 0 6px 0;
+      font-weight: 600;
+    }
+
+    .editor-page h3 {
+      color: #1f4e79;
+      font-size: 13pt;
+      margin: 10px 0 4px 0;
+      font-weight: 600;
+    }
+
+    .editor-page p {
+      margin-bottom: 10px;
+    }
+
+    .editor-page table {
       width: 100%;
       border-collapse: collapse;
-      margin: 12px 0;
+      margin: 14px 0;
     }
 
-    .editor td, .editor th {
-      border: 1px solid #b0b0b0;
-      padding: 6px 10px;
+    .editor-page th, .editor-page td {
+      border: 1px solid #b4c6e7;
+      padding: 8px 10px;
     }
 
-    .editor img {
+    .editor-page th {
+      background-color: #d9e1f2;
+      font-weight: 600;
+    }
+
+    .editor-page img {
       max-width: 100%;
       height: auto;
-      margin: 8px 0;
+      margin: 10px 0;
+      border-radius: 2px;
     }
 
-    /* Barra inferior de herramientas pegada al teclado */
-    .bottom-bar {
+    .editor-page ul, .editor-page ol {
+      padding-left: 26px;
+      margin-bottom: 10px;
+    }
+
+    /* 3. BARRA RÁPIDA INFERIOR (PEGADA AL TECLADO) */
+    .mobile-bottom-bar {
       position: fixed;
-      bottom: 0;
       left: 0;
       right: 0;
-      background: #ffffff;
+      bottom: 0;
+      background: var(--ribbon-bg);
       border-top: 1px solid var(--border-gray);
       height: 48px;
       display: flex;
       align-items: center;
       justify-content: space-around;
-      padding: 0 4px;
-      z-index: 20;
+      padding: 0 6px;
+      z-index: 50;
+      transition: bottom 0.1s ease-out;
     }
 
     .tool-btn {
@@ -177,13 +215,14 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      color: var(--text-main);
     }
 
     .tool-btn:active {
       background: #f1f3f4;
     }
 
-    /* Panel inferior desplegable (Ribbon) */
+    /* 4. HOJA INFERIOR DESLIZANTE (RIBBON EXPANDIDO) */
     .bottom-sheet {
       position: fixed;
       left: 0;
@@ -192,11 +231,11 @@
       background: #ffffff;
       border-top-left-radius: 14px;
       border-top-right-radius: 14px;
-      box-shadow: 0 -4px 18px rgba(0,0,0,0.15);
+      box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.18);
       transform: translateY(100%);
-      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 30;
-      max-height: 55vh;
+      transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 60;
+      max-height: 52vh;
       display: flex;
       flex-direction: column;
     }
@@ -205,7 +244,7 @@
       transform: translateY(0);
     }
 
-    .sheet-header {
+    .sheet-nav {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -213,7 +252,25 @@
       border-bottom: 1px solid var(--border-gray);
     }
 
-    .sheet-body {
+    .sheet-tabs {
+      display: flex;
+      gap: 16px;
+    }
+
+    .tab-item {
+      font-size: 14px;
+      font-weight: 700;
+      color: #5f6368;
+      cursor: pointer;
+    }
+
+    .tab-item.active {
+      color: var(--word-blue);
+      border-bottom: 2px solid var(--word-blue);
+      padding-bottom: 2px;
+    }
+
+    .sheet-content {
       padding: 14px 16px;
       overflow-y: auto;
       display: flex;
@@ -229,17 +286,27 @@
 
     .sheet-select {
       border: 1px solid var(--border-gray);
-      padding: 6px 10px;
+      padding: 6px 8px;
       border-radius: 4px;
       font-size: 13px;
       background: white;
+      outline: none;
     }
 
+    .color-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+
+    /* Fondo oscuro para cerrar menús */
     .scrim {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.3);
-      z-index: 25;
+      background: rgba(0, 0, 0, 0.32);
+      z-index: 55;
       display: none;
     }
 
@@ -250,72 +317,91 @@
 </head>
 <body>
 
-  <!-- Selector nativo de archivos del teléfono -->
-  <input type="file" id="filePicker" accept=".docx" style="display:none" onchange="readWordFile(event)">
+  <!-- Input nativo de archivos vinculado de forma segura con label -->
+  <input 
+    type="file" 
+    id="nativeDocxPicker" 
+    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+    style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" 
+    onchange="handleNativeFile(event)"
+  >
 
-  <!-- Barra superior -->
-  <header class="android-header">
+  <!-- Encabezado estilo Word Android -->
+  <header class="word-header">
     <div class="header-left">
-      <button class="btn-icon">←</button>
-      <div class="doc-meta">
-        <span class="doc-title" id="docTitle">Documento</span>
+      <button class="btn-header">←</button>
+      <div class="doc-badge">
+        <span class="doc-name" id="docTitle">Documento</span>
         <span class="doc-status" id="docStatus">Guardado</span>
       </div>
     </div>
-    
+
     <div class="header-right">
-      <button class="btn-icon active" id="viewToggle" onclick="toggleView()" title="Vista Móvil">📱</button>
-      <button class="btn-icon" onclick="document.execCommand('undo')" title="Deshacer">↩</button>
-      <button class="btn-icon" onclick="document.execCommand('redo')" title="Rehacer">↪</button>
-      <button class="btn-icon" onclick="document.getElementById('filePicker').click()" title="Abrir archivo Word">📂</button>
-      <button class="btn-icon" onclick="saveAsDoc()" title="Guardar documento">💾</button>
+      <!-- Selector de vista -->
+      <button class="btn-header active" id="viewBtn" onclick="togglePageView()" title="Vista Móvil">📱</button>
+      <button class="btn-header" onclick="document.execCommand('undo')" title="Deshacer">↩</button>
+      <button class="btn-header" onclick="document.execCommand('redo')" title="Rehacer">↪</button>
+      
+      <!-- Label nativo para abrir archivos sin bloqueos en Android -->
+      <label for="nativeDocxPicker" class="btn-header" title="Abrir archivo Word">📂</label>
+      <button class="btn-header" onclick="exportWord()" title="Guardar">💾</button>
     </div>
   </header>
 
-  <!-- Área de texto con auto-scroll anti-saltos -->
-  <main class="viewport" id="viewport">
+  <!-- Lienzo editable con seguimiento de cursor -->
+  <main class="document-viewport" id="viewport">
     <div 
       id="editor" 
-      class="editor" 
+      class="editor-page" 
       contenteditable="true" 
       spellcheck="true"
     >
-      <p>Toca el icono de la carpeta <strong>📂</strong> arriba para abrir tu documento Word.</p>
+      <h1>Documento de Word</h1>
+      <p>Toca el icono <strong>📂</strong> en la barra superior para abrir cualquier archivo <strong>.docx</strong> de tu teléfono.</p>
+      <p>Escribe con libertad: el texto se mantendrá visible automáticamente sobre el teclado sin saltar ni desaparecer.</p>
     </div>
   </main>
 
   <!-- Barra inferior rápida -->
-  <nav class="bottom-bar">
-    <button class="tool-btn" onclick="formatText('bold')"><b>N</b></button>
-    <button class="tool-btn" onclick="formatText('italic')"><i>K</i></button>
-    <button class="tool-btn" onclick="formatText('underline')"><u>S</u></button>
-    <button class="tool-btn" onclick="formatText('foreColor', '#d93025')" style="color:#d93025;">A</button>
-    <button class="tool-btn" onclick="formatText('insertUnorderedList')">•</button>
+  <nav class="mobile-bottom-bar" id="bottomBar">
+    <button class="tool-btn" onclick="execCmd('bold')"><b>N</b></button>
+    <button class="tool-btn" onclick="execCmd('italic')"><i>K</i></button>
+    <button class="tool-btn" onclick="execCmd('underline')"><u>S</u></button>
+    <button class="tool-btn" onclick="execCmd('foreColor', '#c00000')" style="color:#c00000;">A</button>
+    <button class="tool-btn" onclick="execCmd('hiliteColor', '#fff2cc')">🖍️</button>
+    <button class="tool-btn" onclick="execCmd('insertUnorderedList')">•</button>
     <button class="tool-btn" onclick="toggleSheet()" style="color:var(--word-blue);">▲</button>
   </nav>
 
-  <!-- Fondo oscuro para cerrar panel -->
+  <!-- Cortina de fondo -->
   <div class="scrim" id="scrim" onclick="toggleSheet()"></div>
 
-  <!-- Panel desplegable con más opciones -->
+  <!-- Ribbon deslizable inferior -->
   <div class="bottom-sheet" id="bottomSheet">
-    <div class="sheet-header">
-      <span style="font-weight:700; color:var(--word-blue);">Inicio ▾</span>
-      <button class="btn-icon" onclick="toggleSheet()">▼</button>
+    <div class="sheet-nav">
+      <div class="sheet-tabs">
+        <span class="tab-item active" id="tabInicio" onclick="switchTab('inicio')">Inicio</span>
+        <span class="tab-item" id="tabInsertar" onclick="switchTab('insertar')">Insertar</span>
+      </div>
+      <button class="btn-header" onclick="toggleSheet()" style="font-size:14px;">▼</button>
     </div>
-    <div class="sheet-body">
+
+    <!-- Pestaña: Inicio -->
+    <div class="sheet-content" id="panelInicio">
       <div class="sheet-row">
-        <label>Fuente</label>
-        <select class="sheet-select" onchange="formatText('fontName', this.value)">
+        <label style="font-size:14px; color:#5f6368;">Fuente</label>
+        <select class="sheet-select" onchange="execCmd('fontName', this.value)">
           <option value="Calibri" selected>Calibri</option>
           <option value="Arial">Arial</option>
           <option value="Times New Roman">Times New Roman</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Courier New">Courier New</option>
         </select>
       </div>
 
       <div class="sheet-row">
-        <label>Tamaño</label>
-        <select class="sheet-select" onchange="formatText('fontSize', this.value)">
+        <label style="font-size:14px; color:#5f6368;">Tamaño</label>
+        <select class="sheet-select" onchange="execCmd('fontSize', this.value)">
           <option value="2">10 pt</option>
           <option value="3" selected>11 pt</option>
           <option value="4">14 pt</option>
@@ -325,13 +411,46 @@
       </div>
 
       <div class="sheet-row">
-        <label>Alineación</label>
-        <div>
-          <button class="tool-btn" onclick="formatText('justifyLeft')">Izq</button>
-          <button class="tool-btn" onclick="formatText('justifyCenter')">Cen</button>
-          <button class="tool-btn" onclick="formatText('justifyRight')">Der</button>
-          <button class="tool-btn" onclick="formatText('justifyFull')">Just</button>
+        <label style="font-size:14px; color:#5f6368;">Estilo de título</label>
+        <select class="sheet-select" onchange="execCmd('formatBlock', this.value)">
+          <option value="<p>">Normal</option>
+          <option value="<h1>">Título 1</option>
+          <option value="<h2>">Título 2</option>
+          <option value="<h3>">Título 3</option>
+        </select>
+      </div>
+
+      <div class="sheet-row">
+        <label style="font-size:14px; color:#5f6368;">Color de texto</label>
+        <div style="display:flex; gap:6px;">
+          <button class="color-btn" style="background:#000000;" onclick="execCmd('foreColor', '#000000')"></button>
+          <button class="color-btn" style="background:#c00000;" onclick="execCmd('foreColor', '#c00000')"></button>
+          <button class="color-btn" style="background:#1f4e79;" onclick="execCmd('foreColor', '#1f4e79')"></button>
+          <button class="color-btn" style="background:#2e75b6;" onclick="execCmd('foreColor', '#2e75b6')"></button>
+          <button class="color-btn" style="background:#70ad47;" onclick="execCmd('foreColor', '#70ad47')"></button>
         </div>
+      </div>
+
+      <div class="sheet-row">
+        <label style="font-size:14px; color:#5f6368;">Alineación</label>
+        <div>
+          <button class="tool-btn" onclick="execCmd('justifyLeft')">Izq</button>
+          <button class="tool-btn" onclick="execCmd('justifyCenter')">Cen</button>
+          <button class="tool-btn" onclick="execCmd('justifyRight')">Der</button>
+          <button class="tool-btn" onclick="execCmd('justifyFull')">Just</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pestaña: Insertar -->
+    <div class="sheet-content" id="panelInsertar" style="display:none;">
+      <div class="sheet-row">
+        <label style="font-size:14px; color:#5f6368;">Insertar tabla básica</label>
+        <button class="sheet-select" style="cursor:pointer;" onclick="insertTable()">+ Tabla (3x3)</button>
+      </div>
+      <div class="sheet-row">
+        <label style="font-size:14px; color:#5f6368;">Línea horizontal</label>
+        <button class="sheet-select" style="cursor:pointer;" onclick="execCmd('insertHorizontalRule')">Insertar</button>
       </div>
     </div>
   </div>
@@ -339,213 +458,143 @@
   <script>
     const editor = document.getElementById('editor');
     const viewport = document.getElementById('viewport');
-    const docTitle = document.getElementById('docTitle');
-    const docStatus = document.getElementById('docStatus');
+    const bottomBar = document.getElementById('bottomBar');
     const bottomSheet = document.getElementById('bottomSheet');
     const scrim = document.getElementById('scrim');
-    const viewToggle = document.getElementById('viewToggle');
+    const viewBtn = document.getElementById('viewBtn');
+    const docTitle = document.getElementById('docTitle');
+    const docStatus = document.getElementById('docStatus');
 
-    // 1. CONTROL DEL CURSOR ANTI-SALTOS
-    // Mantiene siempre visible el texto que estás escribiendo por encima del teclado
-    function keepCaretVisible() {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      if (rect.height === 0 && rect.width === 0) return;
-
-      const viewHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      const bottomLimit = viewHeight - 60; // 60px sobre la barra de herramientas
-
-      if (rect.bottom > bottomLimit) {
-        viewport.scrollBy({ top: rect.bottom - bottomLimit + 30, behavior: 'smooth' });
+    // 1. SOLUCIÓN ANTI-SALTO DE PANTALLA EN MÓVILES
+    // Sincroniza la barra inferior y evita que la pantalla se desplace hacia arriba al escribir
+    function handleViewport() {
+      if (window.visualViewport) {
+        const vp = window.visualViewport;
+        const offsetBottom = window.innerHeight - vp.height - vp.offsetTop;
+        const cleanOffset = Math.max(0, offsetBottom);
+        bottomBar.style.bottom = `${cleanOffset}px`;
+        bottomSheet.style.bottom = `${cleanOffset}px`;
       }
     }
 
-    editor.addEventListener('input', keepCaretVisible);
-    editor.addEventListener('keyup', keepCaretVisible);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewport);
+      window.visualViewport.addEventListener('scroll', handleViewport);
+    }
 
-    function formatText(cmd, val = null) {
+    // Mantiene visible la línea que se está escribiendo sobre el teclado
+    function keepCaretInView() {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (rect.height === 0 && rect.width === 0) return;
+
+      const vpHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const bottomLimit = vpHeight - 65;
+
+      if (rect.bottom > bottomLimit) {
+        viewport.scrollBy({ top: rect.bottom - bottomLimit + 25, behavior: 'smooth' });
+      }
+    }
+
+    editor.addEventListener('input', keepCaretInView);
+
+    function execCmd(cmd, val = null) {
       document.execCommand(cmd, false, val);
       editor.focus();
     }
 
-    // 2. LECTOR DE ARCHIVOS WORD .DOCX (100% LOCAL, SIN SERVIDORES EXTERNOS)
-    async function readWordFile(event) {
+    // 2. APERTURA NATIVA DEL ARCHIVO .DOCX
+    function handleNativeFile(event) {
       const file = event.target.files[0];
       if (!file) return;
 
-      docTitle.innerText = file.name.replace('.docx', '');
-      docStatus.innerText = "Abriendo...";
+      docTitle.innerText = file.name.replace(/\.docx$/i, '');
+      docStatus.innerText = "Cargando...";
 
-      try {
-        const zip = await JSZip.loadAsync(file);
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
 
-        // Extraer mapa de imágenes
-        const relsXml = await zip.file("word/_rels/document.xml.rels")?.async("text");
-        const rels = {};
-        if (relsXml) {
-          const parser = new DOMParser();
-          const relsDoc = parser.parseFromString(relsXml, "application/xml");
-          const items = relsDoc.getElementsByTagName("Relationship");
-          for (let r of items) {
-            rels[r.getAttribute("Id")] = r.getAttribute("Target");
-          }
-        }
+        // Opciones de conversión para preservar imágenes incrustadas en Base64
+        const options = {
+          convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(b64) {
+              return { src: `data:${image.contentType};base64,${b64}` };
+            });
+          })
+        };
 
-        // Leer XML principal del documento
-        const docXml = await zip.file("word/document.xml")?.async("text");
-        if (!docXml) throw new Error("Archivo .docx incompatible");
+        mammoth.convertToHtml({ arrayBuffer: arrayBuffer }, options)
+          .then(function(result) {
+            editor.innerHTML = result.value || "<p></p>";
+            docStatus.innerText = "Guardado local";
+            viewport.scrollTo({ top: 0, behavior: 'smooth' });
+          })
+          .catch(function(err) {
+            console.error(err);
+            alert("No se pudo procesar el archivo Word: " + err.message);
+            docStatus.innerText = "Error";
+          });
+      };
 
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(docXml, "application/xml");
-        const body = xml.getElementsByTagName("w:body")[0];
-
-        let html = "";
-
-        for (let node of body.children) {
-          // Párrafos
-          if (node.nodeName === "w:p") {
-            html += await parseParagraph(node, zip, rels);
-          }
-          // Tablas
-          else if (node.nodeName === "w:tbl") {
-            html += await parseTable(node, zip, rels);
-          }
-        }
-
-        editor.innerHTML = html || "<p></p>";
-        docStatus.innerText = "Listo";
-      } catch (err) {
-        console.error(err);
-        alert("No se pudo leer el archivo: " + err.message);
-        docStatus.innerText = "Error";
-      }
+      reader.readAsArrayBuffer(file);
+      // Limpia el input para permitir volver a abrir el mismo archivo si es necesario
+      event.target.value = "";
     }
 
-    async function parseParagraph(p, zip, rels) {
-      let align = "";
-      const jc = p.getElementsByTagName("w:jc")[0];
-      if (jc) {
-        const val = jc.getAttribute("w:val");
-        align = val === "center" ? "center" : val === "right" ? "right" : val === "both" ? "justify" : "left";
-      }
-
-      let content = "";
-      for (let child of p.childNodes) {
-        if (child.nodeName === "w:r") {
-          content += await parseRun(child, zip, rels);
-        }
-      }
-
-      return `<p style="${align ? 'text-align:' + align + ';' : ''} margin-bottom:8px;">${content || '<br>'}</p>`;
-    }
-
-    async function parseRun(r, zip, rels) {
-      const rPr = r.getElementsByTagName("w:rPr")[0];
-      let styles = [];
-
-      if (rPr) {
-        if (rPr.getElementsByTagName("w:b").length > 0) styles.push("font-weight:bold");
-        if (rPr.getElementsByTagName("w:i").length > 0) styles.push("font-style:italic");
-        if (rPr.getElementsByTagName("w:u").length > 0) styles.push("text-decoration:underline");
-
-        // Color del texto
-        const color = rPr.getElementsByTagName("w:color")[0];
-        if (color && color.getAttribute("w:val")) {
-          styles.push(`color:#${color.getAttribute("w:val")}`);
-        }
-
-        // Tamaño de fuente (en medios puntos: 24 = 12pt)
-        const sz = rPr.getElementsByTagName("w:sz")[0];
-        if (sz && sz.getAttribute("w:val")) {
-          styles.push(`font-size:${parseInt(sz.getAttribute("w:val"), 10) / 2}pt`);
-        }
-
-        // Tipografía
-        const rFonts = rPr.getElementsByTagName("w:rFonts")[0];
-        if (rFonts && rFonts.getAttribute("w:ascii")) {
-          styles.push(`font-family:'${rFonts.getAttribute("w:ascii")}', sans-serif`);
-        }
-      }
-
-      // Procesar imágenes
-      const drawing = r.getElementsByTagName("w:drawing")[0];
-      if (drawing) {
-        const blip = drawing.getElementsByTagName("a:blip")[0];
-        if (blip) {
-          const embedId = blip.getAttribute("r:embed");
-          const target = rels[embedId];
-          if (target) {
-            const cleanPath = "word/" + target.replace(/^(\.\.\/)+/, "");
-            const imgFile = zip.file(cleanPath);
-            if (imgFile) {
-              const base64 = await imgFile.async("base64");
-              return `<img src="data:image/png;base64,${base64}" />`;
-            }
-          }
-        }
-      }
-
-      // Extraer texto
-      let text = "";
-      const tElements = r.getElementsByTagName("w:t");
-      for (let t of tElements) {
-        text += t.textContent;
-      }
-
-      if (!text) return "";
-      return styles.length ? `<span style="${styles.join(';')}">${text}</span>` : text;
-    }
-
-    async function parseTable(tbl, zip, rels) {
-      let rows = "";
-      const trs = tbl.getElementsByTagName("w:tr");
-      for (let tr of trs) {
-        let cells = "";
-        const tcs = tr.getElementsByTagName("w:tc");
-        for (let tc of tcs) {
-          let cellContent = "";
-          const ps = tc.getElementsByTagName("w:p");
-          for (let p of ps) {
-            cellContent += await parseParagraph(p, zip, rels);
-          }
-
-          let bg = "";
-          const shd = tc.getElementsByTagName("w:shd")[0];
-          if (shd && shd.getAttribute("w:fill") && shd.getAttribute("w:fill") !== "auto") {
-            bg = `background-color:#${shd.getAttribute("w:fill")};`;
-          }
-
-          cells += `<td style="${bg}">${cellContent}</td>`;
-        }
-        rows += `<tr>${cells}</tr>`;
-      }
-      return `<table>${rows}</table>`;
-    }
-
-    // 3. GUARDAR EL DOCUMENTO EDITADO
-    function saveAsDoc() {
-      const content = editor.innerHTML;
-      const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${docTitle.innerText}</title></head><body>${content}</body></html>`;
-      const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${docTitle.innerText}.doc`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // 4. CAMBIO DE VISTAS (Móvil vs Página)
-    function toggleView() {
+    // 3. CAMBIO DE VISTAS (MÓVIL / IMPRESIÓN A4)
+    function togglePageView() {
       viewport.classList.toggle('print-mode');
-      viewToggle.classList.toggle('active');
+      const isPrint = viewport.classList.contains('print-mode');
+      viewBtn.classList.toggle('active', !isPrint);
+      viewBtn.innerText = isPrint ? '📄' : '📱';
+      viewBtn.title = isPrint ? 'Vista de Impresión' : 'Vista Móvil';
     }
 
+    // 4. CONTROL DEL RIBBON DESLIZABLE
     function toggleSheet() {
-      bottomSheet.classList.toggle('open');
-      scrim.classList.toggle('show');
+      const isOpen = bottomSheet.classList.contains('open');
+      bottomSheet.classList.toggle('open', !isOpen);
+      scrim.classList.toggle('show', !isOpen);
+    }
+
+    function switchTab(tab) {
+      const isInicio = tab === 'inicio';
+      document.getElementById('tabInicio').classList.toggle('active', isInicio);
+      document.getElementById('tabInsertar').classList.toggle('active', !isInicio);
+      document.getElementById('panelInicio').style.display = isInicio ? 'flex' : 'none';
+      document.getElementById('panelInsertar').style.display = !isInicio ? 'flex' : 'none';
+    }
+
+    function insertTable() {
+      const tableHtml = `
+        <table>
+          <tr><th>Columna 1</th><th>Columna 2</th><th>Columna 3</th></tr>
+          <tr><td>Dato</td><td>Dato</td><td>Dato</td></tr>
+          <tr><td>Dato</td><td>Dato</td><td>Dato</td></tr>
+        </table><p><br></p>
+      `;
+      execCmd('insertHTML', tableHtml);
+      toggleSheet();
+    }
+
+    // 5. EXPORTACIÓN A ARCHIVO WORD COMPATIBLE
+    function exportWord() {
+      const title = docTitle.innerText || "Documento";
+      const content = editor.innerHTML;
+      const html = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>${title}</title></head>
+        <body>${content}</body>
+        </html>
+      `;
+      const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${title}.doc`;
+      link.click();
+      URL.revokeObjectURL(link.href);
     }
   </script>
 </body>
